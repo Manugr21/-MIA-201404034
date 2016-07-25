@@ -40,10 +40,10 @@ struct Super_Bloque{
 
 struct Journal{
 	int 		Journal_tipo_operacion;		//Indica que tipo de operacion se realizo
-	int 		Journal_tipo;				//0 Archivos | 1 Carpetas
-	char[10]	Journal_nombre;				//Nombre del archivo o directorio
-	int 		Journal_contenido; 			//Indica si hay datos contenidos
-	time 		Journal_fecha;				//Fecha de la transaccion
+	int 		Journal_tipo;			//0 Archivos | 1 Carpetas
+	char[10]	Journal_nombre;			//Nombre del archivo o directorio
+	int 		Journal_contenido; 		//Indica si hay datos contenidos
+	time 		Journal_fecha;			//Fecha de la transaccion
 	char[10]	Journal_propietario;		//Nombre del usuario propietario del archivo o carpeta
-	int 		Journal_Permisos;			//Son los permisos que tenia el archivo o carpeta
+	int 		Journal_Permisos;		//Son los permisos que tenia el archivo o carpeta
 };
