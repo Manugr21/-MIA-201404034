@@ -19,7 +19,7 @@
 */
 
 struct Super_Bloque{
-	int		s_filesystem_type;
+	int	s_filesystem_type;
 	int 	s_inodes_count;
 	int 	s_blocks_count;
 	int 	s_free_blocks_count;
@@ -42,8 +42,21 @@ struct Journal{
 	int 		Journal_tipo_operacion;		//Indica que tipo de operacion se realizo
 	int 		Journal_tipo;			//0 Archivos | 1 Carpetas
 	char[10]	Journal_nombre;			//Nombre del archivo o directorio
-	int 		Journal_contenido; 		//Indica si hay datos contenidos
+	int 		Journal_contenido; 		//No estoy seguro que es
 	time 		Journal_fecha;			//Fecha de la transaccion
 	char[10]	Journal_propietario;		//Nombre del usuario propietario del archivo o carpeta
 	int 		Journal_Permisos;		//Son los permisos que tenia el archivo o carpeta
 };
+
+int main()
+{
+    system("clear");
+    printf("************************************************************\n");
+    printf("*        Bienvenido al sistema de archivos Ext             *\n");
+    printf("************************************************************\n");
+    Preparar();
+    printf(">>Para apagar el sistema ingrese el comando \"exit\".\n>> Sistema listo, porfavor introduzca un comando...\n");
+    //Ingresar_Comando();
+    printf("Apagando...\n");
+    return 0;
+}
