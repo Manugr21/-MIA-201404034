@@ -79,26 +79,35 @@ struct Journal{
 	Variable Globales
 */
 //Cosas genericas pero importantes
-char 	Normal[400];
+int 	TAG;
 
 /*
 	Metodos Genericos
 */
 void Ingresar_Comando() {
-    contador_While = 0;
+    char Normal[400];
+    char Linea_Comparable[400];
+    char temp[200];
     TAG = 0;
-
     scanf(" %[^\n]s", Normal);
     if (Normal[strlen(Normal)-1] == '\\')  
     {
-    	char temp[200];
     	scanf(" %[^\n]s", temp);
-    	strcat(Normal, temp);
+        strncpy(Linea_Comparable, Normal, strlen(Normal)-1);
+        strcat(Linea_Comparable, temp);
+        strcpy(Normal, Linea_Comparable);
+        char *Lista = strtok(Linea_Comparable, " ");
+        //Analizar_Comando(Normal, Lista);
     }
-    strcpy(Linea_Comparable, Normal);
-    char *Lista = strtok(Normal, " ");
-    Analizar_Comando(Linea_Comparable, Lista);
+    else
+    {
+        strcpy(Linea_Comparable, Normal);
+        char *Lista = strtok(Normal, " ");
+        //Analizar_Comando(Linea_Comparable, Lista);
+    }
 }
+
+
 
 
 /*
