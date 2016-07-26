@@ -17,6 +17,34 @@
 /*
 	Estructuras
 */
+struct Particion
+{
+	char 	part_status;
+	char 	part_type;
+	char 	part_fit;
+};
+
+struct MBR{
+	int 		mbr_tamano;
+	time 		mbr_fecha_creacion;
+	int 		mbr_disk_signature;
+	struct 		Particion mbr_partition_1;
+	struct 		Particion mbr_partition_2;
+	struct 		Particion mbr_partition_3;
+	struct 		Particion mbr_partition_4;
+	int 		part_start;
+	int 		part_size;
+	char[16] 	part_name;
+};
+
+struct EBR
+{
+	char 		part_status
+	char 		part_fit;
+	int 		part_size;
+	int 		part_next;
+	char[16]	part_name;
+};
 
 struct Super_Bloque{
 	int	s_filesystem_type;
