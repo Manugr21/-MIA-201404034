@@ -25,25 +25,25 @@ struct Particion
 };
 
 struct MBR{
-	int 		mbr_tamano;
-	time 		mbr_fecha_creacion;
-	int 		mbr_disk_signature;
-	struct 		Particion mbr_partition_1;
-	struct 		Particion mbr_partition_2;
-	struct 		Particion mbr_partition_3;
-	struct 		Particion mbr_partition_4;
-	int 		part_start;
-	int 		part_size;
-	char[16] 	part_name;
+	int 	mbr_tamano;
+	time 	mbr_fecha_creacion;
+	int 	mbr_disk_signature;
+	struct 	Particion mbr_partition_1;
+	struct 	Particion mbr_partition_2;
+	struct 	Particion mbr_partition_3;
+	struct 	Particion mbr_partition_4;
+	int 	part_start;
+	int 	part_size;
+	char 	part_name[16];
 };
 
 struct EBR
 {
-	char 		part_status
-	char 		part_fit;
-	int 		part_size;
-	int 		part_next;
-	char[16]	part_name;
+	char 	part_status
+	char 	part_fit;
+	int 	part_size;
+	int 	part_next;
+	char	part_name[16];
 };
 
 struct Super_Bloque{
@@ -67,15 +67,43 @@ struct Super_Bloque{
 };
 
 struct Journal{
-	int 		Journal_tipo_operacion;		//Indica que tipo de operacion se realizo
-	int 		Journal_tipo;			//0 Archivos | 1 Carpetas
-	char[10]	Journal_nombre;			//Nombre del archivo o directorio
-	int 		Journal_contenido; 		//No estoy seguro que es
-	time 		Journal_fecha;			//Fecha de la transaccion
-	char[10]	Journal_propietario;		//Nombre del usuario propietario del archivo o carpeta
-	int 		Journal_Permisos;		//Son los permisos que tenia el archivo o carpeta
+	int 	Journal_tipo_operacion;		//Indica que tipo de operacion se realizo
+	int 	Journal_tipo;			//0 Archivos | 1 Carpetas
+	char	Journal_nombre[10];		//Nombre del archivo o directorio
+	int 	Journal_contenido; 		//No estoy seguro que es
+	time 	Journal_fecha;			//Fecha de la transaccion
+	char	Journal_propietario[10];	//Nombre del usuario propietario del archivo o carpeta
+	int 	Journal_Permisos;		//Son los permisos que tenia el archivo o carpeta
 };
+/*
+	Variable Globales
+*/
+//Cosas genericas pero importantes
+char 	Normal[400];
 
+/*
+	Metodos Genericos
+*/
+void Ingresar_Comando() {
+    contador_While = 0;
+    TAG = 0;
+
+    scanf(" %[^\n]s", Normal);
+    if (Normal[strlen(Normal)-1] == '\\')  
+    {
+    	char temp[200];
+    	scanf(" %[^\n]s", temp);
+    	strcat(Normal, temp);
+    }
+    strcpy(Linea_Comparable, Normal);
+    char *Lista = strtok(Normal, " ");
+    Analizar_Comando(Linea_Comparable, Lista);
+}
+
+
+/*
+	El MAIN
+*/
 int main()
 {
     system("clear");
