@@ -26,7 +26,7 @@ struct Particion
 
 struct MBR{
 	int 	mbr_tamano;
-	time 	mbr_fecha_creacion;
+	time_t*	mbr_fecha_creacion;
 	int 	mbr_disk_signature;
 	struct 	Particion mbr_partition_1;
 	struct 	Particion mbr_partition_2;
@@ -39,7 +39,7 @@ struct MBR{
 
 struct EBR
 {
-	char 	part_status
+	char 	part_status;
 	char 	part_fit;
 	int 	part_size;
 	int 	part_next;
@@ -52,8 +52,8 @@ struct Super_Bloque{
 	int 	s_blocks_count;
 	int 	s_free_blocks_count;
 	int 	s_free_inodes_count;
-	time	s_mtime;
-	time 	s_umtime;
+	time_t*	s_mtime;
+	time_t*	s_umtime;
 	int 	s_mnt_count;
 	int 	s_magic;
 	int 	s_inode_size;
@@ -68,43 +68,52 @@ struct Super_Bloque{
 
 struct Journal{
 	int 	Journal_tipo_operacion;		//Indica que tipo de operacion se realizo
-	int 	Journal_tipo;			//0 Archivos | 1 Carpetas
-	char	Journal_nombre[10];		//Nombre del archivo o directorio
-	int 	Journal_contenido; 		//No estoy seguro que es
-	time 	Journal_fecha;			//Fecha de la transaccion
+	int 	Journal_tipo;			    //0 Archivos | 1 Carpetas
+	char	Journal_nombre[10];		    //Nombre del archivo o directorio
+	int 	Journal_contenido; 		    //No estoy seguro que es
+	time_t*	Journal_fecha;			    //Fecha de la transaccion
 	char	Journal_propietario[10];	//Nombre del usuario propietario del archivo o carpeta
-	int 	Journal_Permisos;		//Son los permisos que tenia el archivo o carpeta
+	int 	Journal_Permisos;		    //Son los permisos que tenia el archivo o carpeta
 };
 /*
 	Variable Globales
 */
 //Cosas genericas pero importantes
+int     Multiplicador;
+char    Normal[400];
+char    Linea_Comparable[400];
+
+//Banderas o indicadores
 int 	TAG;
+int     TAG_Script = 0;
+
+//Contadores
+int     iWhile;
 
 /*
 	Metodos Genericos
 */
 void Ingresar_Comando() {
-    char Normal[400];
-    char Linea_Comparable[400];
+
     char temp[200];
     TAG = 0;
     scanf(" %[^\n]s", Normal);
-    if (Normal[strlen(Normal)-1] == '\\')  
+    if (Normal[strlen(Normal)-1] == '\\')
     {
     	scanf(" %[^\n]s", temp);
         strncpy(Linea_Comparable, Normal, strlen(Normal)-1);
         strcat(Linea_Comparable, temp);
         strcpy(Normal, Linea_Comparable);
         char *Lista = strtok(Linea_Comparable, " ");
-        //Analizar_Comando(Normal, Lista);
+        Analizar_Comando(Normal, Lista);
     }
     else
     {
         strcpy(Linea_Comparable, Normal);
         char *Lista = strtok(Normal, " ");
-        //Analizar_Comando(Linea_Comparable, Lista);
+        Analizar_Comando(Linea_Comparable, Lista);
     }
+
 }
 
 void Crear_Directorios_Reales(char path[200]){
@@ -163,9 +172,9 @@ void Analizar_Comando(char *linea, char *palabra) {
             	temp = strtok(NULL, " ");
             	strcpy(name, temp);
         	}else if(strcasecmp(temp, "\n") == 0){
-            
+
             }else if(strcasecmp(temp, "\r\n") == 0){
-            
+
             }else{
                 printf("\t>%s no es un modificador valido para la instruccion Mkdisk.\n",temp);
             }//Fin del if que verifica que modificador es
@@ -216,9 +225,9 @@ void Analizar_Comando(char *linea, char *palabra) {
             }
             printf("Eliminaria disco");
         }else if(strcasecmp(temp, "\n") == 0){
-            
+
         }else if(strcasecmp(temp, "\r\n") == 0){
-        
+
         }else{
             printf("\t>Comando invalido, para eliminar un disco por favor ingrese su ruta con el comando -path.\n");
         }
@@ -263,9 +272,9 @@ void Analizar_Comando(char *linea, char *palabra) {
                 temp = strtok(NULL, " ");
                 strcpy(add, temp);
             }else if(strcasecmp(temp, "\n") == 0){
-            
+
             }else if(strcasecmp(temp, "\r\n") == 0){
-            
+
             }else{
                 printf("\t>Modificador invalido %s\n", temp);
             }
@@ -273,7 +282,7 @@ void Analizar_Comando(char *linea, char *palabra) {
         }
 
         //Validacion de los datos
-        if (((strcasecmp(size,"")!=0)&&(strcasecmp(delet,"")==0))&&(strcasecmp(path,"")!=0)&&(strcasecmp(name,"")!=0)){
+        if (((strcasecmp(size,"")!=0)&&(strcasecmp(delete,"")==0))&&(strcasecmp(path,"")!=0)&&(strcasecmp(name,"")!=0)){
             //Validacion de que el fit este correcto
             if((strcasecmp(fit,"bf") == 0)||(strcasecmp(fit,"ff") == 0)||(strcasecmp(fit,"wf") == 0)||(strcasecmp(fit,"") == 0)){
                 //Validacion de que el type este correcto
@@ -285,7 +294,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             }else{
                 printf("\t>Caracter no reconocido.\n\t>Los tipos de fit disponibles son: BF, FF y WF.\n");
             }
-        }else if((strcasecmp(delet,"")!=0)&&(strcasecmp(path,"")!=0)&&(strcasecmp(name,"")!=0)){
+        }else if((strcasecmp(delete,"")!=0)&&(strcasecmp(path,"")!=0)&&(strcasecmp(name,"")!=0)){
             printf("Eliminaria una particion\n");
         }else{
             printf("\t>No se han escrito todos los datos esenciales, por favor intentelo nuevamente...\n");
@@ -312,9 +321,9 @@ void Analizar_Comando(char *linea, char *palabra) {
                     strcpy(path, temp);
                 }
             }else if(strcasecmp(temp, "\n") == 0){
-            
+
             }else if(strcasecmp(temp, "\r\n") == 0){
-            
+
             }else{
                 printf("\t>Comando invalido, para montar una particion debe ingresar el nombre y la ruta.\n");
             }
@@ -333,6 +342,66 @@ void Analizar_Comando(char *linea, char *palabra) {
                 printf("\t>Comando invalido, para desmontar debe ingresar el id asignado a la particion.\n");
         }
         printf("Desmonta una particion.\n");
+    }else if (strcasecmp(palabra, "exec") == 0) {
+        char *temp = strtok(linea, " ");
+        temp = strtok(NULL, "::");
+        if (strcasecmp(temp,"-path")==0){
+            temp = strtok(NULL, " ");
+            strcpy(aux_String, temp);
+            if(aux_String[0] == '\"'){
+                temp++;
+                strcpy(path, temp);
+                temp = strtok(NULL, "\"");
+                strcat(path, " ");
+                strcat(path, temp);
+            }else{
+                strcpy(path, temp);
+            }
+
+            FILE *f = fopen (path, "r");
+
+            if(f != NULL){
+                while(feof(f)==0){
+                    strcpy(Normal,"");
+                    fgets(Normal,100,f);
+                    iWhile = 0;
+                    strcpy(aux_String, Normal);
+                    if(aux_String[0] != '#'){
+                        if((strcasecmp(Normal,"") != 0) && (strlen(Normal) > 2)){
+                            printf("Script: %s\n", Normal);
+                            strcpy(Linea_Comparable, Normal);
+                            char *lista = strtok(Normal, " ");
+                            TAG_Script = 1;
+                            Analizar_Comando(Linea_Comparable, lista);
+                        }
+
+                    }else{
+                        printf(">> %s\n", aux_String);
+                    }
+                }
+            }else{
+                printf("\t>No se encontro el archivo en la ruta especificada.\n");
+            }
+        }else if(strcasecmp(temp, "\n") == 0){
+
+        }else{
+                printf("\t>Para ejecutar un script unicamente debe ingresar la ruta del archivo con el comando -path.\n");
+        }
+    }else if (strcasecmp(palabra, "exit") == 0) {
+        TAG_Script = -7;
+    }else if (strcasecmp(palabra, "clear") == 0) {
+        system("clear");
+    }else{
+        printf("\t>Comando invalido. Por favor intentelo nuevamente...\n");
+    }
+
+    //Valido si seguir leyendo comandos o realizar el script
+    if(TAG_Script == 0){
+        Ingresar_Comando();
+    }else if(TAG_Script == -7){
+
+    }else{
+        TAG_Script = 0;
     }
 }
 
@@ -347,9 +416,9 @@ int main()
     printf("************************************************************\n");
     printf("*        Bienvenido al sistema de archivos Ext             *\n");
     printf("************************************************************\n");
-    Preparar();
+    //Preparar();
     printf(">>Para apagar el sistema ingrese el comando \"exit\".\n>> Sistema listo, porfavor introduzca un comando...\n");
-    //Ingresar_Comando();
+    Ingresar_Comando();
     printf("Apagando...\n");
     return 0;
 }
