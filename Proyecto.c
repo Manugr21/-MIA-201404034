@@ -107,6 +107,20 @@ void Ingresar_Comando() {
     }
 }
 
+void Crear_Directorios_Reales(char path[200]){
+    //const char x = '/';
+    //char *fin;
+    if(path[0] == '/'){
+        //fin = strrchr(path, x);
+        char terminal_cmd[300];
+        strcpy (terminal_cmd,  "mkdir -p '");
+        //strncat(terminal_cmd, path, strlen(path)-strlen(fin));
+        strncat(terminal_cmd, path, strlen(path)-1);
+        strcat(terminal_cmd, "'");
+        system(terminal_cmd);
+    }
+}
+
 
 
 
