@@ -79,8 +79,10 @@ struct Journal{
 	Variable Globales
 */
 //Cosas genericas pero importantes
+char    buffer[1];
 int     Multiplicador;
 int     convertido;
+char    Montador[100][100][100];
 char    Normal[400];
 char    Linea_Comparable[400];
 char    Abecedario[28];
@@ -88,6 +90,7 @@ char    Abecedario[28];
 //Banderas o indicadores
 int 	TAG;
 int     TAG_Script = 0;
+int     aux_int;
 
 //Contadores
 int     iWhile;
@@ -132,6 +135,38 @@ void Crear_Directorios_Reales(char path[200]){
     }
 }
 
+/*
+    Metodos y Funciones de la Fase 1
+*/
+void Crear_Disco(char size[10], char name[20], char ruta_Disco[100]){
+    struct MBR mbr;
+    //Inicializo los datos del disco
+    convertido = (int) strtol(size, (char **)NULL, 10);
+    mbr.mbr_tamano = convertido * 1024 * Multiplicador;
+    time(&mbr.mbr_fecha_creacion);
+    mbr.mbr_disk_signature = (rand() % 26);
+    mbr.mbr_partition_1.part_status = '0';
+    mbr.mbr_partition_2.part_status = '0';
+    mbr.mbr_partition_3.part_status = '0';
+    mbr.mbr_partition_4.part_status = '0';
+
+    //Inicio de la escritura del disco
+    char ruta_temp[120];
+    strcpy(ruta_temp, ruta_Disco);
+    strcat(ruta_temp, "/");
+    strcat(ruta_temp, name);
+    FILE *f_disco = fopen (ruta_temp, "wb+");
+    for(int iFor=0; iFor < mbr.mbr_tamano; iFor++){
+        fwrite(buffer, sizeof(buffer), 1, f_disco);
+    }//Fin del for que escribe el disco
+
+    rewind(f_disco);
+    fwrite(&mbr, sizeof(mbr), 1, f_disco);
+    fclose(f_disco);
+
+    printf("\t>>Disco creado exitosamente.\n");
+}
+
 void Analizar_Comando(char *linea, char *palabra) {
 
     char aux_String[100] = "";
@@ -144,9 +179,9 @@ void Analizar_Comando(char *linea, char *palabra) {
     char ruta_Destino[100];
     char fit[2];
     char delete[4];
-    int  add, dsn;
+    int  add, dsm;
     char id[5];
-    char dfk, dfdm, dfh, dfi;
+    char dfk, dfm, dfh, dfi;
     char fs[3];
 
     //Area de creacion de discos
@@ -156,12 +191,21 @@ void Analizar_Comando(char *linea, char *palabra) {
         while(temp != NULL){
             if(strcasecmp(temp, "-size")==0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(size, temp);
             }else if(strcasecmp(temp, "+unit")==0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(unit, temp);
             }else if (strcasecmp(temp,"-path")==0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(aux_String, temp);
                 if(aux_String[0] == '\"'){
                     temp++;
@@ -174,6 +218,9 @@ void Analizar_Comando(char *linea, char *palabra) {
                 }
             }else if(strcasecmp(temp,"-name")==0){
             	temp = strtok(NULL, " ");
+            	if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
             	strcpy(name, temp);
         	}else if(strcasecmp(temp, "\n") == 0){
 
@@ -182,7 +229,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             }else{
                 printf("\t>%s no es un modificador valido para la instruccion Mkdisk.\n",temp);
             }//Fin del if que verifica que modificador es
-            temp= strtok(NULL, "::");
+            temp = strtok(NULL, "::");
         }//Fin del while que obtiene las propiedades
 
         if((strcasecmp(size,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
@@ -203,9 +250,10 @@ void Analizar_Comando(char *linea, char *palabra) {
 
             //Valido el multiplicador para crear el disco
             if(Multiplicador == -1){
-                printf("\t>Unidad invalida, porfavor intentelo nuevamente.\nLas unidades permitidas son \"K\" y \"M\".\n");
+                printf("\t>Unidad invalida, porfavor intentelo nuevamente.\n\t>Las unidades permitidas son \"K\" y \"M\".\n");
             }else{
-                printf("Crearia disco");
+                printf("\t>Creando disco... \n");
+                Crear_Disco(size, name, ruta_Disco);
             }//Fin del If donde se crea el disco.
         }else{
             printf("\t>Faltan modificadores obligatorios.\n \t>Por favor intentelo nuevamente e ingrese el tamaño y la ruta por lo menos.\n");
@@ -436,13 +484,13 @@ void Analizar_Comando(char *linea, char *palabra) {
 
     	while(temp != NULL){
     		if(strcasecmp(temp, "+k") == 0){
-    			dsk = 'k';
+    			dfk = 'k';
     		}else if(strcasecmp(temp, "+m") == 0){
-    			dsm = 'm';
+    			dfm = 'm';
     		}else if(strcasecmp(temp, "+h") == 0){
-    			dsh = 'h';
+    			dfh = 'h';
     		}else if(strcasecmp(temp, "+i") == 0){
-    			dsi = 'i';
+    			dfi = 'i';
     		}else if(strcasecmp(temp, "\n") == 0){
 
             }else if(strcasecmp(temp, "\r\n") == 0){
@@ -453,8 +501,8 @@ void Analizar_Comando(char *linea, char *palabra) {
     		temp = strtok(NULL, " ");
     	}
 
-    	if((dsk == NULL) || (dsm == NULL) || (dsh == NULL) || (dsi == NULL)){
-            dsk = 'k'
+    	if((dfk == NULL) || (dfm == NULL) || (dfh == NULL) || (dfi == NULL)){
+            dfk = 'k';
     	}
 
     	printf("Hace lo del disk free.\n");
@@ -466,10 +514,10 @@ void Analizar_Comando(char *linea, char *palabra) {
     	while(temp != NULL){
     		if(strcasecmp(temp, "+n") == 0){
     			temp = strtok(NULL, " ");
-    			dsn = (int)strtol(temp, (char **)NULL, 10);
+    			dsm = (int)strtol(temp, (char **)NULL, 10);
     		}else if(strcasecmp(temp, "-h") == 0){
                 temp = strtok(NULL, " ");
-    			dsh = 'h';
+    			dfh = 'h';
     		}else if(strcasecmp(temp, "-path") == 0){
                 temp = strtok(NULL, " ");
                 strcpy(aux_String, temp);
@@ -491,7 +539,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             }
     		temp = strtok(NULL, "::");
     	}
-    	if((ruta_Disco != "") && (dsh == 'h')){
+    	if((ruta_Disco != "") && (dfh == 'h')){
             printf("Hace lo del disk used.\n");
     	}
 
@@ -536,9 +584,9 @@ void Analizar_Comando(char *linea, char *palabra) {
         if(strcasecmp(id, "") == 0){
             printf("Se necesita el modificador id para realizar formateos.\n");
         }else{
-            char c = Jarvis.id[2];
+            char c = id[2];
             char ns[3];
-            sprintf(ns, "%c%c", Jarvis.id[3],Jarvis.id[4]);
+            sprintf(ns, "%c%c", id[3],id[4]);
             aux_int = 0;
             while(c != Abecedario[aux_int]){
                 aux_int++;
@@ -547,7 +595,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             strcpy(name, Montador[aux_int][convertido]);
             strcpy(ruta_Disco, Montador[aux_int][0]);
             //Formatear(name, ruta_Disco);
-            printf("Formatearia la particion")ñ
+            printf("Formatearia la particion");
         }
 
     }else if(strcasecmp(palabra, "exit") == 0) {
