@@ -96,6 +96,39 @@ int     aux_int;
 int     iWhile;
 
 /*
+    Declaracion de metodos 
+ */
+//Genericos
+void    Ingresar_Comando();
+char*   montador(char name[20], char path[100]);
+void    Crear_Directorios_Reales(char path[100]);
+
+//Fase 1
+void    Crear_Disco(char size[10], char name[20], char ruta_Disco[100]);
+void    Eliminar_Disco(char path[100]);
+
+//Fase 2
+//Analizador
+void    Analizar_Comando(char *linea, char *palabra);
+
+/*
+	El MAIN
+*/
+int main(){
+    system("clear");
+    printf("************************************************************\n");
+    printf("*        Bienvenido al sistema de archivos Ext             *\n");
+    printf("************************************************************\n");
+    time_t t;
+    srand((unsigned) time(&t));
+    strcpy(Abecedario,"abcdefghijklmnopqrstuvwxyz");
+    printf(">>Para apagar el sistema ingrese el comando \"exit\".\n>> Sistema listo, porfavor introduzca un comando...\n");
+    Ingresar_Comando();
+    printf("Apagando...\n");
+    return 0;
+}
+
+/*
 	Metodos Genericos
 */
 void Ingresar_Comando() {
@@ -121,7 +154,26 @@ void Ingresar_Comando() {
 
 }
 
-void Crear_Directorios_Reales(char path[200]){
+char* montador( char name[20], char path[100]){
+    char *id = malloc(sizeof(char) * 128);
+    int nRuta = 0,  nPart = 1;
+    while(nRuta<100){
+        if((strcasecmp(Montador[nRuta][0],"")==0) || (strcasecmp(Montador[nRuta][0], path)==0)){
+            strcpy(Montador[nRuta][0], path);
+            while ((strcasecmp(Montador[nRuta][nPart], "") != 0)&&(strcasecmp(Montador[nRuta][nPart], name) != 0)){
+                nPart++;
+            }
+            strcpy(Montador[nRuta][nPart], name);
+            sprintf(id, "vd%c%d", Abecedario[nRuta], nPart);
+            return id;
+        }else{
+            nRuta++;
+        }
+    }
+    return "";
+}
+
+void Crear_Directorios_Reales(char path[100]){
     //const char x = '/';
     //char *fin;
     if(path[0] == '/'){
@@ -165,6 +217,23 @@ void Crear_Disco(char size[10], char name[20], char ruta_Disco[100]){
     fclose(f_disco);
 
     printf("\t>>Disco creado exitosamente.\n");
+}
+
+void Eliminar_Disco(char path[100]){
+    char SoN[1];
+    printf("¿Deseas eliminar el disco? [S/N]\n");
+    scanf("%s", SoN);
+    if(strcasecmp(SoN,"S")==0){
+        if(fopen (path, "r") == NULL){
+            printf("\t>El disco indicado no existe. Intentelo nuevamente...\n");
+        }else{
+            if(remove(path) == 0){
+                printf("\t>>Disco eliminado.\n");
+            }else{
+                printf("\t>Disco en uso, cierre o desmonte el disco y luego intentelo nuevamente.\n");
+            }
+        }
+    }
 }
 
 void Analizar_Comando(char *linea, char *palabra) {
@@ -614,24 +683,4 @@ void Analizar_Comando(char *linea, char *palabra) {
     }else{
         TAG_Script = 0;
     }
-}
-
-
-
-/*
-	El MAIN
-*/
-int main()
-{
-    system("clear");
-    printf("************************************************************\n");
-    printf("*        Bienvenido al sistema de archivos Ext             *\n");
-    printf("************************************************************\n");
-    time_t t;
-    srand((unsigned) time(&t));
-    strcpy(Abecedario,"abcdefghijklmnopqrstuvwxyz");
-    printf(">>Para apagar el sistema ingrese el comando \"exit\".\n>> Sistema listo, porfavor introduzca un comando...\n");
-    Ingresar_Comando();
-    printf("Apagando...\n");
-    return 0;
 }
