@@ -1,0 +1,10 @@
+# depslib dependency file v1.0
+1470006018 source:/home/manugr/[MIA]201404034/Proyecto.c
+	<stdio.h>
+	<stdlib.h>
+	<math.h>
+	<time.h>
+	<ctype.h>
+	<stdbool.h>
+	<string.h>
+

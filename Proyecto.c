@@ -22,6 +22,9 @@ struct Particion
 	char 	part_status;
 	char 	part_type;
 	char 	part_fit;
+        int     part_start;
+        int     part_size;
+        char    part_name[16];
 };
 
 struct MBR{
@@ -41,8 +44,10 @@ struct EBR
 {
 	char 	part_status;
 	char 	part_fit;
+        int     part_start;
 	int 	part_size;
 	int 	part_next;
+        int     part_previous;
 	char	part_name[16];
 };
 
@@ -91,6 +96,10 @@ char    Abecedario[28];
 int 	TAG;
 int     TAG_Script = 0;
 int     aux_int;
+int     Particiones_N = 0;
+int     Particiones_Ini = 0;
+int     Particiones_Fin = 0;
+int     EBR_Ini = 0;
 
 //Contadores
 int     iWhile;
@@ -106,6 +115,9 @@ void    Crear_Directorios_Reales(char path[100]);
 //Fase 1
 void    Crear_Disco(char size[10], char name[20], char ruta_Disco[100]);
 void    Eliminar_Disco(char path[100]);
+void    Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], char type[1], char path[100]);
+void    Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[100], int size);
+void    Eliminar_Particiones(char delet[4], char name[20], char path[100]);
 
 //Fase 2
 //Analizador
@@ -236,6 +248,3818 @@ void Eliminar_Disco(char path[100]){
     }
 }
 
+void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], char type[1], char path[100]){
+    struct MBR mbr;
+    FILE *f;
+    if((fopen (path, "rb+")) != NULL){
+        f = fopen (path, "rb+");
+    }else{
+        printf("\t>¡El archivo no existe!");
+    }
+
+    fread (&mbr, sizeof(mbr), 1,f);
+
+    //contar particiones
+    TAG = 0;
+    aux_int = 0;
+    Particiones_N = 0;
+    Particiones_Ini = 0;
+    Particiones_Fin = 0;
+    if(mbr.mbr_partition_1.part_status != 'n'){
+        Particiones_N++;
+        if(mbr.mbr_partition_1.part_type == 'e'){
+            aux_int++;
+        }
+    }
+    if(mbr.mbr_partition_2.part_status != 'n'){
+        Particiones_N++;
+        if(mbr.mbr_partition_2.part_type == 'e'){
+            aux_int++;
+        }
+    }
+    if(mbr.mbr_partition_3.part_status != 'n'){
+        Particiones_N++;
+        if(mbr.mbr_partition_3.part_type == 'e'){
+            aux_int++;
+        }
+    }
+    if(mbr.mbr_partition_4.part_status != 'n'){
+        Particiones_N++;
+        if(mbr.mbr_partition_4.part_type == 'e'){
+            aux_int++;
+        }
+    }
+
+    if(strcasecmp(unit, "k") == 0){
+        Multiplicador = 1024;
+    }else if(strcasecmp(unit, "m") == 0){
+        Multiplicador = 1024 * 1024;
+    }else if(strcasecmp(unit, "") == 0){
+        Multiplicador = 1024 * 1024;
+    }else if(strcasecmp(unit, "b") == 0){
+        Multiplicador = 1;
+    }else{
+        Multiplicador = 0;
+    }
+    
+    char charFit;
+    if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+        charFit = 'w';
+    }else if((strcasecmp(fit,"bf") == 0)){
+        charFit = 'b';
+    }else if((strcasecmp(fit,"ff") == 0)){
+        charFit = 'f';
+    }else{
+        charFit = 'n';
+    }
+
+    if(strcasecmp(type,"l") != 0){
+
+        if(Multiplicador != 0){
+            if(Particiones_N == 4){
+                printf("\t>Solo se pueden crear 4 particiones.");
+            }else if(Particiones_N == 0){
+                if(mbr.mbr_tamano >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                    mbr.mbr_partition_1.part_status = 'd';
+                    mbr.mbr_partition_1.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                    mbr.mbr_partition_1.part_start = sizeof(mbr);
+                    strcpy(mbr.mbr_partition_1.part_name, name);
+
+                    if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_1.part_fit = 'wf';
+                    }else if ((strcasecmp(fit,"bf") == 0)){
+                        mbr.mbr_partition_1.part_fit = 'bf';
+                    }else{
+                        mbr.mbr_partition_1.part_fit = 'ff';
+                    }
+
+                    if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                        mbr.mbr_partition_1.part_type = 'p';
+                    }else if(strcasecmp(type,"e") == 0){
+                        if(aux_int == 0){
+                            mbr.mbr_partition_1.part_type = 'e';
+                            
+                            struct EBR ebr;
+                            ebr.part_next= -1;
+                            ebr.part_start = sizeof(mbr) + sizeof(ebr);
+                            ebr.part_status = 'n';
+                            fseek(f,sizeof(mbr),SEEK_SET);
+                            fwrite(&ebr, sizeof(ebr), 1, f);
+                        }else{
+                            TAG = 1;
+                            printf("\t>¡Solo puede haber una particion extendida!\n");
+                        }
+                    }
+                    
+                    if(TAG == 0){
+                        fseek(f, 0, SEEK_SET);
+                        fwrite(&mbr, sizeof(mbr), 1, f);
+                    }else{
+                        printf("\t>No se pudieron guardar los cambios\n");
+                    }
+                }else{
+                    printf("\t>No hay espacio suficiente en el disco.\n");
+                }
+            }else if(Particiones_N == 1){
+
+                if(mbr.mbr_partition_1.part_status != 'n'){
+                    if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                        Particiones_Ini = mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size;
+                        Particiones_Fin = mbr.mbr_tamano;
+                    }else if(mbr.mbr_partition_1.part_start > sizeof(mbr)){
+                        Particiones_Ini = sizeof(mbr);
+                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                        if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                            Particiones_Ini = mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size;
+                            Particiones_Fin = mbr.mbr_tamano;
+                        }
+                    }else{
+                        printf("\t>Se leyo mal el archivo.\n");
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_2.part_status = 'd';
+                        mbr.mbr_partition_2.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_2.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_2.part_name, name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'wf';
+                        }else if ((strcasecmp(fit,"bf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'bf';
+                        }else{
+                            mbr.mbr_partition_1.part_fit = 'ff';
+                        }
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_2.part_type = 'p';
+                        }else if(strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_2.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_2.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+                }else if(mbr.mbr_partition_2.part_status != 'n'){
+                    if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                        Particiones_Ini = mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size;
+                        Particiones_Fin = mbr.mbr_tamano;
+                    }else if(mbr.mbr_partition_2.part_start > sizeof(mbr)){
+                        Particiones_Ini = sizeof(mbr);
+                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                        if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                            Particiones_Ini = mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size;
+                            Particiones_Fin = mbr.mbr_tamano;
+                        }
+                    }else{
+                        printf("\t>Se leyo mal el archivo.\n");
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_1.part_status = 'a';
+                        mbr.mbr_partition_1.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_1.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_1.part_name, name);
+                        
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'wf';
+                        }else if((strcasecmp(fit,"bf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'bf';
+                        }else{
+                            mbr.mbr_partition_1.part_fit = 'ff';
+                        }
+
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_1.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_1.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_1.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios\n");
+                        }
+                    }
+                }else if(mbr.mbr_partition_3.part_status != 'n'){
+                    if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                        Particiones_Ini = mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size;
+                        Particiones_Fin = mbr.mbr_tamano;
+                    }else if(mbr.mbr_partition_3.part_start > sizeof(mbr)){
+                        Particiones_Ini = sizeof(mbr);
+                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                        if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                            Particiones_Ini = mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size;
+                            Particiones_Fin = mbr.mbr_tamano;
+                        }
+                    }else{
+                        printf("\t>Se leyo mal el archivo.\n");
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_1.part_status = 'a';
+                        mbr.mbr_partition_1.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_1.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_1.part_name, name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'wf';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_1.part_fit = 'bf';
+                        }else{
+                            mbr.mbr_partition_1.part_fit = 'ff';
+                        }
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_1.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_1.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_1.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+                }else if(mbr.mbr_partition_4.part_status != 'n'){
+                    if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                        Particiones_Ini = mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size;
+                        Particiones_Fin = mbr.mbr_tamano;
+                    }else if(mbr.mbr_partition_2.part_start > sizeof(mbr)){
+                        Particiones_Ini = sizeof(mbr);
+                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                        if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                            Particiones_Ini = mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size;
+                            Particiones_Fin = mbr.mbr_tamano;
+                        }
+                    }else{
+                        printf("\t>Se leyo mal el archivo.\n");
+                    }
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_1.part_status = 'a';
+                        mbr.mbr_partition_1.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_1.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_1.part_name, name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'wf';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_1.part_fit = 'bf';
+                        }else{
+                            mbr.mbr_partition_1.part_fit = 'ff';
+                        }
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_1.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_1.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_1.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+                }else{
+                    printf("\t>Se leyo mal el archivo.\n");
+                }
+            }else if(Particiones_N == 2){
+                if(mbr.mbr_partition_1.part_status == 'n'){
+                    if((mbr.mbr_partition_2.part_status != 'n')&&(mbr.mbr_partition_3.part_status != 'n')){
+                        if((mbr.mbr_partition_2.part_start < mbr.mbr_partition_3.part_start)){
+                            if((mbr.mbr_partition_2.part_start == sizeof(mbr))){
+                                if(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size == mbr.mbr_partition_3.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)==mbr.mbr_partition_3.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_2.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                            }else{
+                                if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size == mbr.mbr_partition_2.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)==mbr.mbr_partition_3.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_3.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                            }else{
+                                if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }else if((mbr.mbr_partition_2.part_status != 'n')&&(mbr.mbr_partition_4.part_status != 'n')){
+                        if(mbr.mbr_partition_2.part_start < mbr.mbr_partition_4.part_start){
+                            if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size == mbr.mbr_partition_4.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)==mbr.mbr_partition_4.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_2.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size == mbr.mbr_partition_2.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)==mbr.mbr_partition_4.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_4.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                            }else{
+                                if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }else if((mbr.mbr_partition_3.part_status != 'n')&&(mbr.mbr_partition_4.part_status != 'n')){
+                        if(mbr.mbr_partition_3.part_start < mbr.mbr_partition_4.part_start){
+                            if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size == mbr.mbr_partition_4.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)==mbr.mbr_partition_4.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_3.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size == mbr.mbr_partition_3.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)==mbr.mbr_partition_4.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_4.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                            }else{
+                                if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }//ya termino
+
+
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_1.part_status = 'a';
+                        mbr.mbr_partition_1.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_1.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_1.part_name, name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                            mbr.mbr_partition_1.part_fit = 'wf';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_1.part_fit = 'bf';
+                        }else{
+                            mbr.mbr_partition_1.part_fit = 'ff';
+                        }
+
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_1.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_1.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_1.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+
+
+                }else if(mbr.mbr_partition_2.part_status == 'n'){
+                    if((mbr.mbr_partition_1.part_status != 'n')&&(mbr.mbr_partition_4.part_status != 'n')){
+                        if(mbr.mbr_partition_1.part_start < mbr.mbr_partition_4.part_start){
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size == mbr.mbr_partition_4.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)==mbr.mbr_partition_4.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_1.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size == mbr.mbr_partition_1.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)==mbr.mbr_partition_4.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_4.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }else if((mbr.mbr_partition_1.part_status != 'n')&&(mbr.mbr_partition_1.part_status != 'n')){
+                        if(mbr.mbr_partition_1.part_start < mbr.mbr_partition_1.part_start){
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size == mbr.mbr_partition_1.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)==mbr.mbr_partition_1.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_1.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size == mbr.mbr_partition_1.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)==mbr.mbr_partition_1.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_1.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }else if((mbr.mbr_partition_4.part_status != 'n')&&(mbr.mbr_partition_1.part_status != 'n')){
+                        if(mbr.mbr_partition_4.part_start < mbr.mbr_partition_1.part_start){
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size == mbr.mbr_partition_1.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)==mbr.mbr_partition_1.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_4.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size == mbr.mbr_partition_4.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)==mbr.mbr_partition_1.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_1.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }
+
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_2.part_status = 'a';
+                        mbr.mbr_partition_2.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_2.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_2.part_name,name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_2.part_fit = 'w';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_2.part_fit = 'b';
+                        }else{
+                            mbr.mbr_partition_2.part_fit = 'f';
+                        }
+
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_2.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_2.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_2.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+                }else if(mbr.mbr_partition_3.part_status == 'n'){
+                    if((mbr.mbr_partition_4.part_status != 'n')&&(mbr.mbr_partition_1.part_status != 'n')){
+                        if(mbr.mbr_partition_4.part_start < mbr.mbr_partition_1.part_start){
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size == mbr.mbr_partition_1.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)==mbr.mbr_partition_1.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_4.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size == mbr.mbr_partition_4.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)==mbr.mbr_partition_1.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_1.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }else if((mbr.mbr_partition_4.part_status != 'n')&&(mbr.mbr_partition_2.part_status != 'n')){
+                        if(mbr.mbr_partition_4.part_start < mbr.mbr_partition_2.part_start){
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size == mbr.mbr_partition_2.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)==mbr.mbr_partition_2.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_4.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                            }else{
+                                if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size == mbr.mbr_partition_4.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)==mbr.mbr_partition_2.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_2.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }else if((mbr.mbr_partition_1.part_status != 'n')&&(mbr.mbr_partition_2.part_status != 'n')){
+                        if(mbr.mbr_partition_1.part_start < mbr.mbr_partition_2.part_start){
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size == mbr.mbr_partition_2.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)==mbr.mbr_partition_2.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_1.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                            }else{
+                                if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size == mbr.mbr_partition_1.part_start){
+                                    if(((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size))>=strtol(size, (char**)NULL, 10)*Multiplicador)&&(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)==mbr.mbr_partition_2.part_start){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                    }
+                                }
+                            }else if(mbr.mbr_partition_2.part_start-sizeof(mbr)>= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                Particiones_Ini = sizeof(mbr);
+                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size)>= strtol(size, (char**)NULL, 10)*Multiplicador)){
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador ){
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                    printf("\t>No hay suficiente espacio para crear la particion.\n");
+                                }
+                            }
+                        }
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("error, no hay espacio suficiente, %d,%d",Particiones_Fin, Particiones_Ini);
+                    }else{
+                        mbr.mbr_partition_3.part_status = 'd';
+                        mbr.mbr_partition_3.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_3.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_3.part_name,name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_3.part_fit = 'w';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_3.part_fit = 'b';
+                        }else{
+                            mbr.mbr_partition_3.part_fit = 'f';
+                        }
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_3.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_3.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_3.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+
+
+                }else{
+                    printf(">Lo siento, no hice algo bien.<\n");
+                }
+            }else if(Particiones_N == 3){
+                if(mbr.mbr_partition_1.part_status == 'n'){
+                    if((mbr.mbr_partition_2.part_start < mbr.mbr_partition_3.part_start)){
+                        if((mbr.mbr_partition_2.part_start < mbr.mbr_partition_4.part_start)){
+                            if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_4.part_start)){
+                                if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+
+                                }
+                            }else{
+                                if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }else{
+                        if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_4.part_start)){
+                            if((mbr.mbr_partition_2.part_start < mbr.mbr_partition_4.part_start)){
+                                if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+
+                                }
+                            }else{
+                                if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_4.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_1.part_status = 'a';
+                        mbr.mbr_partition_1.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_1.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_1.part_name, name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_1.part_fit = 'wf';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_1.part_fit = 'bf';
+                        }else{
+                            mbr.mbr_partition_1.part_fit = 'ff';
+                        }
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_1.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_1.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_1.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+
+                }else if(mbr.mbr_partition_2.part_status == 'n'){
+                    if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_4.part_start)){
+                        if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_1.part_start)){
+                            if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_1.part_start)){
+                                if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+
+                                }
+                            }else{
+                                if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }else{
+                        if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_1.part_start)){
+                            if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_1.part_start)){
+                                if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }else{
+                                if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_1.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_2.part_status = 'a';
+                        mbr.mbr_partition_2.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_2.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_2.part_name,name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_2.part_fit = 'w';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_2.part_fit = 'b';
+                        }else{
+                            mbr.mbr_partition_2.part_fit = 'f';
+                        }
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_2.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_2.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_2.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+
+                }else if(mbr.mbr_partition_3.part_status == 'n'){
+                    if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_1.part_start)){
+                        if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_2.part_start)){
+                            if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_2.part_start)){
+                                if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }else{
+                                if(mbr.mbr_partition_4.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_2.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }else{
+                        if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_2.part_start)){
+                            if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_2.part_start)){
+                                if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+
+                                }
+                            }else{
+                                if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_2.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if(mbr.mbr_partition_4.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_4.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_4.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_3.part_status = 'a';
+                        mbr.mbr_partition_3.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_3.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_3.part_name,name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_3.part_fit = 'w';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_3.part_fit = 'b';
+                        }else{
+                            mbr.mbr_partition_3.part_fit = 'f';
+                        }
+
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_3.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_3.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_3.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+
+                }else if(mbr.mbr_partition_4.part_status == 'n'){
+                    if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_2.part_start)){
+                        if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_3.part_start)){
+                            if((mbr.mbr_partition_2.part_start < mbr.mbr_partition_3.part_start)){
+                                if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }else{
+                                if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_3.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                }else if(mbr.mbr_partition_2.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }else{
+                        if((mbr.mbr_partition_2.part_start < mbr.mbr_partition_3.part_start)){
+                            if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_3.part_start)){
+                                if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start == (mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }else{
+                                if(mbr.mbr_partition_2.part_start == sizeof(mbr)){
+                                    if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_2.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = sizeof(mbr);
+                                        Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                    }else if(mbr.mbr_partition_3.part_start==(sizeof(mbr)+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                            if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }else{
+                                            if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                                Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                            }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                                Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                                Particiones_Fin = mbr.mbr_tamano;
+                                            }else{
+                                                printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                            }
+                                        }
+                                    }else if((mbr.mbr_partition_3.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                    }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }
+                            }
+                        }else{
+                            if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
+                                if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }else{
+                                if((mbr.mbr_partition_3.part_start-sizeof(mbr)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                    Particiones_Ini = sizeof(mbr);
+                                    Particiones_Fin = mbr.mbr_partition_3.part_start;
+                                }else if(mbr.mbr_partition_2.part_start==(sizeof(mbr)+mbr.mbr_partition_3.part_size)){
+                                    if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                        if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }else{
+                                        if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                            Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                        }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                            Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                            Particiones_Fin = mbr.mbr_tamano;
+                                        }else{
+                                            printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                        }
+                                    }
+                                }else if((mbr.mbr_partition_2.part_start-(mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){// fragmentacion entre 2 y 3
+                                    Particiones_Ini = mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size;
+                                    Particiones_Fin = mbr.mbr_partition_2.part_start;
+                                }else if(mbr.mbr_partition_1.part_start == (mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)){
+                                    if(mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }else{
+                                    if((mbr.mbr_partition_1.part_start-(mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size;
+                                        Particiones_Fin = mbr.mbr_partition_1.part_start;
+                                    }else if((mbr.mbr_tamano-(mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size)) >= strtol(size, (char**)NULL, 10)*Multiplicador){
+                                        Particiones_Ini = mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size;
+                                        Particiones_Fin = mbr.mbr_tamano;
+                                    }else{
+                                        printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
+                        printf("\t>No hay espacio suficiente.\n");
+                    }else{
+                        mbr.mbr_partition_4.part_status = 'a';
+                        mbr.mbr_partition_4.part_size = strtol(size, (char**)NULL, 10)*Multiplicador;
+                        mbr.mbr_partition_4.part_start = Particiones_Ini;
+                        strcpy(mbr.mbr_partition_4.part_name,name);
+                        if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+                        mbr.mbr_partition_4.part_fit = 'w';
+                        }else if(strcasecmp(fit,"bf") == 0){
+                            mbr.mbr_partition_4.part_fit = 'b';
+                        }else{
+                            mbr.mbr_partition_4.part_fit = 'f';
+                        }
+
+                        if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
+                            mbr.mbr_partition_4.part_type = 'p';
+                        }else if (strcasecmp(type,"e") == 0){
+                            if(aux_int == 0){
+                                mbr.mbr_partition_4.part_type = 'e';
+                                
+                                struct EBR ebr;
+                                ebr.part_next= -1;
+                                ebr.part_start = mbr.mbr_partition_4.part_start+sizeof(ebr);
+                                ebr.part_status = 'n';
+                                fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                            }else{
+                                TAG = 1;
+                                printf("\t>Solo puede haber una particion extendida.\n");
+                            }
+                        }
+
+                        if(TAG == 0){
+                            fseek(f, 0, SEEK_SET);
+                            fwrite(&mbr, sizeof(mbr), 1, f);
+                        }else{
+                            printf("\t>No se pudieron guardar los cambios.\n");
+                        }
+                    }
+                }
+            }
+        }else{
+            printf("\t>Unit invalido, tipos disponibles: P, E y L.\n");
+        }
+    }else{
+        
+        if(aux_int == 0){
+            printf("\t>No existe una particion logica en el disco.\n");
+        }else{
+            if(mbr.mbr_partition_1.part_type == 'e'){
+
+                Crear_Particion_Logica(f, mbr.mbr_partition_1.part_start,mbr.mbr_partition_1.part_start+mbr.mbr_partition_1.part_size, charFit, name, strtol(size, (char**)NULL, 10) * Multiplicador);
+
+            }else if(mbr.mbr_partition_2.part_type == 'e'){
+
+                Crear_Particion_Logica(f, mbr.mbr_partition_2.part_start,mbr.mbr_partition_2.part_start+mbr.mbr_partition_2.part_size, charFit, name, strtol(size, (char**)NULL, 10) * Multiplicador);
+
+            }else if(mbr.mbr_partition_3.part_type == 'e'){
+
+                Crear_Particion_Logica(f, mbr.mbr_partition_3.part_start,mbr.mbr_partition_3.part_start+mbr.mbr_partition_3.part_size, charFit, name, strtol(size, (char**)NULL, 10) * Multiplicador);
+
+            }else if(mbr.mbr_partition_4.part_type == 'e'){
+
+                Crear_Particion_Logica(f, mbr.mbr_partition_4.part_start,mbr.mbr_partition_4.part_start+mbr.mbr_partition_4.part_size, charFit, name, strtol(size, (char**)NULL, 10) * Multiplicador);
+
+            }else{
+                printf("Lo siento hice algo mal.\n");
+            }
+        }
+    }
+    fclose(f);
+}
+
+void Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[100], int size){
+    struct EBR ebr;
+    struct EBR ebrNuevo;
+    fseek(f, inicio, SEEK_SET);
+    fread(&ebr, sizeof(ebr), 1, f);
+
+    if(ebr.part_next == -1){
+        if(inicio + sizeof(ebr) + size <= limite){
+            ebr.part_fit = fit;
+            strcpy(ebr.part_name, name);
+            ebr.part_next = inicio + sizeof(ebr) + size;
+            ebr.part_size = size;
+            ebr.part_start = inicio;
+            ebr.part_status = 'd';
+
+            ebrNuevo.part_next= -1;
+            ebrNuevo.part_start = ebr.part_next + sizeof(ebr);
+            ebrNuevo.part_previous= inicio;
+            ebrNuevo.part_status = 'n';
+            fseek(f, inicio, SEEK_SET);
+            fwrite(&ebr, sizeof(ebr), 1, f);
+            fseek(f, ebr.part_next, SEEK_SET);
+            fwrite(&ebrNuevo, sizeof(ebr), 1, f);
+        }else{
+            printf("\t>No hay espacio suficiente en la particion extendida.\n");
+        }
+
+    }else{
+        if(ebr.part_next == ebr.part_size+ebr.part_start){
+            Crear_Particion_Logica(f, ebr.part_next, limite, fit, name, size);
+        }else{
+            if(ebr.part_next -(ebr.part_size+ebr.part_start) >= size){
+                ebrNuevo.part_next= ebr.part_next;
+                ebrNuevo.part_start = ebr.part_start + sizeof(ebr) + ebr.part_size + sizeof(ebr);
+                ebrNuevo.part_previous= inicio;
+                ebrNuevo.part_status = 'd';
+
+                ebr.part_next = ebr.part_start + sizeof(ebr) + ebr.part_size;
+                fseek(f, inicio, SEEK_SET);
+                fwrite(&ebr, sizeof(ebr), 1, f);
+                fseek(f, ebr.part_next, SEEK_SET);
+                fwrite(&ebrNuevo, sizeof(ebr), 1, f);
+            }else{
+                Crear_Particion_Logica(f, ebr.part_next, limite, fit, name, size);
+            }
+        }
+    }
+}
+
+void Eliminar_Particiones(char delet[4], char name[20], char path[250]){
+    char SoN[1];
+    printf("¿Desea borrar la particion? [S/N]\n");
+    scanf("%s", SoN);
+    if(strcasecmp(SoN,"S")==0){
+        struct MBR mbr;
+        FILE *f = fopen (path, "rb+");
+        fseek(f,0,SEEK_SET);
+        fread (&mbr, sizeof(mbr), 1, f);
+
+        //Comparo con la particion 1
+        if(strcasecmp(mbr.mbr_partition_1.part_name, name) == 0){
+            if(strcasecmp(delet,"fast") == 0){
+                mbr.mbr_partition_1.part_status = 'n';
+                mbr.mbr_partition_1.part_start = 0;
+                mbr.mbr_partition_1.part_size = 0;
+                mbr.mbr_partition_1.part_type = 'n';
+            }else if(strcasecmp(delet,"full") == 0){
+                fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
+                for(int iFor  = 0; iFor  < mbr.mbr_partition_1.part_size;  iFor++)
+                    fwrite (buffer, sizeof(buffer), 1, f);
+                mbr.mbr_partition_1.part_status = 'n';
+                mbr.mbr_partition_1.part_start = 0;
+                mbr.mbr_partition_1.part_size = 0;
+                mbr.mbr_partition_1.part_type = 'n';
+            }
+            printf("Particion %s eliminada.\n", name);
+        //Comparo con la particion 2
+        }else if(strcasecmp(mbr.mbr_partition_2.part_name,  name) == 0){
+            if(strcasecmp(delet,"fast") == 0){
+                mbr.mbr_partition_2.part_status = 'n';
+                mbr.mbr_partition_2.part_start = 0;
+                mbr.mbr_partition_2.part_size = 0;
+                mbr.mbr_partition_2.part_type = 'n';
+            }else if(strcasecmp(delet,"full") == 0){
+                fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
+                for(int iFor = 0; iFor < mbr.mbr_partition_2.part_size; iFor++)
+                    fwrite (buffer, sizeof(buffer), 1, f);
+                mbr.mbr_partition_2.part_status = 'n';
+                mbr.mbr_partition_2.part_start = 0;
+                mbr.mbr_partition_2.part_size = 0;
+                mbr.mbr_partition_2.part_type = 'n';
+            }
+            printf("Particion %s eliminada.\n", name);
+        //Comparo con la particion 3
+        }else if(strcasecmp(mbr.mbr_partition_3.part_name, name) == 0){
+            if(strcasecmp(delet,"fast") == 0){
+                mbr.mbr_partition_3.part_status = 'n';
+                mbr.mbr_partition_3.part_start = 0;
+                mbr.mbr_partition_3.part_size = 0;
+                mbr.mbr_partition_3.part_type = '0';
+            }else if(strcasecmp(delet,"full") == 0){
+                fseek(f, mbr.mbr_partition_3.part_start, SEEK_SET);
+                for(int iFor = 0; iFor < mbr.mbr_partition_3.part_size; iFor++)
+                    fwrite (buffer, sizeof(buffer), 1, f);
+                mbr.mbr_partition_3.part_status = 'n';
+                mbr.mbr_partition_3.part_start = 0;
+                mbr.mbr_partition_3.part_size = 0;
+                mbr.mbr_partition_3.part_type = 'n';
+            }
+            printf("Particion %s eliminada.\n", name);
+        //Comparo con la particion 4
+        }else if(strcasecmp(mbr.mbr_partition_4.part_name, name) == 0){
+            if(strcasecmp(delet,"fast") != 0){
+                mbr.mbr_partition_4.part_status = 'n';
+                mbr.mbr_partition_4.part_start = 0;
+                mbr.mbr_partition_4.part_size = 0;
+                mbr.mbr_partition_4.part_type = 'n';
+            }else if(strcasecmp(delet,"full") == 0){
+                fseek(f, mbr.mbr_partition_4.part_start, SEEK_SET);
+                for(int iFor = 0; iFor < mbr.mbr_partition_4.part_size; iFor++)
+                    fwrite (buffer, sizeof(buffer), 1, f);
+                mbr.mbr_partition_4.part_status = 'n';
+                mbr.mbr_partition_4.part_start = 0;
+                mbr.mbr_partition_4.part_size = 0;
+                mbr.mbr_partition_4.part_type = 'n';
+            }
+            printf("Particion %s eliminada.\n", name);
+        }else{
+            struct EBR ebr;
+            struct EBR ebr_prev;
+            struct EBR ebr_next;
+            ebr_prev.part_next = -1;
+
+            if(mbr.mbr_partition_1.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_1.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                EBR_Ini = mbr.mbr_partition_1.part_start;
+            }else if(mbr.mbr_partition_2.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_2.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                EBR_Ini = mbr.mbr_partition_2.part_start;
+            }else if(mbr.mbr_partition_3.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                EBR_Ini = mbr.mbr_partition_3.part_start;
+            }else if(mbr.mbr_partition_4.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                EBR_Ini = mbr.mbr_partition_4.part_start;
+            }else{
+                printf("No se encontro la particion logicas.\n");
+            }
+            TAG = 0;
+
+            while(ebr.part_status != '0'){
+                TAG = 1;
+                if(strcasecmp(ebr.part_name, name) == 0){
+                    if(ebr_prev.part_next != -1){
+
+                        if(strcasecmp(delet,"fast") != 0){
+                            ebr.part_start = 0;
+                            ebr.part_status = 'n';
+                            fseek(f, ebr.part_next, SEEK_SET);
+                            fread (&ebr_next, sizeof(ebr_next), 1, f);
+                            if(ebr_next.part_next == -1){
+                                ebr.part_next = -1;
+                                fseek(f, ebr_prev.part_next, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion logica %s eliminada.\n", name);
+                            }else{
+                                ebr_prev.part_next = ebr.part_next;
+                                ebr_next.part_previous = ebr.part_previous;
+                                fseek(f, ebr.part_previous, SEEK_SET);
+                                fwrite(&ebr_prev, sizeof(ebr_prev), 1, f);
+                                fseek(f, ebr.part_next,SEEK_SET);
+                                fwrite(&ebr_next, sizeof(ebr_next), 1, f);
+                                printf("\t>>Particion %s eliminada.\n", name);
+                            }
+                        //Fin del borrado rapido
+                        }else if(strcasecmp(delet,"full") != 0){
+                            ebr.part_start = 0;
+                            ebr.part_status = 'n';
+                            fseek(f, ebr.part_next, SEEK_SET);
+                            fread (&ebr_next, sizeof(ebr_next), 1, f);
+                            if(ebr_next.part_next == -1){
+                                ebr.part_next = -1;
+                                fseek(f, ebr_prev.part_next, SEEK_SET);
+                                fwrite(&ebr, sizeof(ebr), 1, f);
+                                fseek(f, ebr.part_start, SEEK_SET);
+                                for(int iFor = 0; iFor < ebr.part_size; iFor++){
+                                    fwrite (buffer, sizeof(buffer), 1, f);
+                                }
+                                printf("\t>>Particion %s eliminada.\n", name);
+                            }else{
+                                int posicionBorrado = ebr_prev.part_next;
+                                ebr_prev.part_next = ebr.part_next;
+                                ebr_next.part_previous = ebr.part_previous;
+                                fseek(f, ebr.part_previous, SEEK_SET);
+                                fwrite(&ebr_prev, sizeof(ebr_prev),1, f);
+                                fseek(f, ebr.part_next, SEEK_SET);
+                                fwrite(&ebr_next, sizeof(ebr_next),1, f);
+                                fseek(f, posicionBorrado, SEEK_SET);
+                                for(int iFor = 0; iFor < ebr.part_size+sizeof(ebr); iFor++){
+                                    fwrite (buffer, sizeof(buffer), 1, f);
+                                }
+                                printf("\t>>Particion %s eliminada.\n", name);
+                            }
+                        }//Fin del borrado completo
+                    } //Fin del if que compara el nombre con la particion actual
+                }else{
+                    ebr_prev = ebr;
+                    fseek(f, ebr.part_next, SEEK_SET);
+                    fread (&ebr, sizeof(ebr), 1, f);
+                }//Fin del cambio de particion
+            }//Fin del ciclo de busqueda
+        }//Fin del borrado de una particion
+        fseek(f, 0, SEEK_SET);
+        fwrite(&mbr, sizeof(mbr), 1, f);
+        fclose(f);
+    }//Fin del borrado
+}
+
+void Montar(char name[20], char path[250]){
+    char id[10];
+    struct MBR mbr;
+    FILE *f_disco;
+    if((fopen(path, "rb+")) == NULL){
+        printf("\t>No se encontro el archivo en la ruta especificada.\n");
+    }else{
+        f_disco = fopen(path, "rb+");
+        fseek(f_disco,0,SEEK_SET);
+        fread (&mbr, sizeof(mbr), 1,f_disco);
+
+        if(strcasecmp(mbr.mbr_partition_1.part_name, name) == 0){
+            mbr.mbr_partition_1.part_status = 'a';
+            strcpy(id, montador( name, path));
+            printf("\t>>La particion %s se monto exitosamento con el id: %s\n", name, id);
+        }else if(strcasecmp(mbr.mbr_partition_2.part_name, name) == 0){
+            mbr.mbr_partition_2.part_status = 'a';
+            strcpy(id, montador( name, path));
+            printf("\t>>La particion %s se monto exitosamento con el id: %s\n", name, id);
+        }else if(strcasecmp(mbr.mbr_partition_3.part_name, name) == 0){
+            mbr.mbr_partition_3.part_status = 'a';
+            strcpy(id, montador( name, path));
+            printf("\t>>La particion %s se monto exitosamento con el id: %s\n", name, id);
+        }else if(strcasecmp(mbr.mbr_partition_4.part_name, name) == 0){
+            mbr.mbr_partition_4.part_status = 'a';
+            strcpy(id, montador( name, path));
+            printf("\t>>La particion %s se monto exitosamento con el id: %s\n", name, id);
+        }else{
+            struct EBR ebr;
+            TAG = 0;
+
+            if(mbr.mbr_partition_1.part_type == 'e'){
+                fseek(f_disco, mbr.mbr_partition_1.part_start, SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f_disco);
+            }else if(mbr.mbr_partition_2.part_type == 'e'){
+                fseek(f_disco, mbr.mbr_partition_2.part_start, SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f_disco);
+            }else if(mbr.mbr_partition_3.part_type == 'e'){
+                fseek(f_disco, mbr.mbr_partition_3.part_start, SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f_disco);
+            }else if(mbr.mbr_partition_4.part_type == 'e'){
+                fseek(f_disco, mbr.mbr_partition_4.part_start, SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f_disco);
+            }else{
+                printf("\t>Solo se pueden montar particiones existentes, intentelo nuevamente :(\n");
+                TAG =1;
+            }
+            while((ebr.part_status != '0')&&(TAG == 0)){
+                if(strcasecmp(ebr.part_name, name) == 0){
+                    ebr.part_status = 'a';
+                    fseek(f_disco, ebr.part_start-sizeof(ebr), SEEK_SET);
+                    fwrite(&ebr, sizeof(ebr), 1, f_disco);
+                    strcpy(id, montador( name, path));
+                    printf("\t>>La particion %s se monto exitosamento con el id: %s\n", name, id);
+                    TAG = 1;
+                }else{
+                    fseek(f_disco,ebr.part_next,SEEK_SET);
+                    fread (&ebr, sizeof(ebr), 1,f_disco);
+                }
+            }
+        }
+        fseek(f_disco, 0, SEEK_SET);
+        fwrite(&mbr, sizeof(mbr), 1, f_disco);
+        fclose(f_disco);
+    }
+}
+
+void Desmontar(char id[4]){
+        struct MBR mbr;
+        char name[20], path[250];
+        int Algo = 0;
+        char Letra_Disco = id[2];
+        char nP[3];
+        FILE *f;
+        sprintf(nP, "%c%c", id[3], id[4]);
+        aux_int = 0;
+        while(Letra_Disco != Abecedario[aux_int]){
+            aux_int++;
+        }
+        strcpy(name, Montador[aux_int][atoi(nP)]);
+        strcpy(path, Montador[aux_int][0]);
+        strcpy(Montador[aux_int][atoi(nP)], "");
+        TAG = 0;
+        while(Algo < 100){
+            if(strcasecmp(Montador[aux_int][Algo], "") != 0){
+                TAG = 1;
+            }
+            Algo++;
+        }
+        if(TAG == 0){
+            strcpy(Montador[aux_int][0], "");
+        }
+
+        if((fopen (path, "rb+")) == NULL){
+            printf("\t>No se encontro el archivo en la ruta indicada\n");
+        }else{
+            f = fopen (path, "rb+");
+            fseek(f,0,SEEK_SET);
+            fread (&mbr, sizeof(mbr), 1,f);
+            if(strcasecmp(mbr.mbr_partition_1.part_name,name) == 0){
+                mbr.mbr_partition_1.part_status = 'd';
+                printf("\t>>Particion %s desmontada.\n",name);
+            }else if(strcasecmp(mbr.mbr_partition_2.part_name,name) == 0){
+                mbr.mbr_partition_2.part_status = 'd';
+                printf("\t>>Particion %s desmontada.\n",name);
+            }else if(strcasecmp(mbr.mbr_partition_3.part_name,name) == 0){
+                mbr.mbr_partition_3.part_status = 'd';
+                printf("\t>>Particion %s desmontada.\n",name);
+            }else if(strcasecmp(mbr.mbr_partition_4.part_name,name) == 0){
+                mbr.mbr_partition_4.part_status = 'd';
+                printf("\t>>Particion %s desmontada.\n",name);
+            }else{
+                struct EBR ebr;
+                TAG = 0;
+                //con esto ubico en donde esta el primer ebr a leer
+                if(mbr.mbr_partition_1.part_type == 'e'){
+                    fseek(f,mbr.mbr_partition_1.part_start,SEEK_SET);
+                    fread (&ebr, sizeof(ebr), 1,f);
+                }else if(mbr.mbr_partition_2.part_type == 'e'){
+                    fseek(f,mbr.mbr_partition_2.part_start,SEEK_SET);
+                    fread (&ebr, sizeof(ebr), 1,f);
+                }else if(mbr.mbr_partition_3.part_type == 'e'){
+                    fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
+                    fread (&ebr, sizeof(ebr), 1,f);
+                }else if(mbr.mbr_partition_4.part_type == 'e'){
+                    fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
+                    fread (&ebr, sizeof(ebr), 1,f);
+                }else{
+                    printf("\t>Solo se pueden desmontar particiones montadas... lo se, que mala indicacion :P\n");
+                    TAG =1;
+                }
+                while((ebr.part_status != '0')&&(TAG == 0)){
+                    if(strcasecmp(ebr.part_name,name) == 0){
+                        ebr.part_status = 'd';
+                        fseek(f,ebr.part_start-sizeof(ebr),SEEK_SET);
+                        fwrite(&ebr,sizeof(ebr),1,f);
+                        TAG = 1;
+                        printf("\t>>Particion %s desmontada.\n",name);
+                    }else{
+                        fseek(f,ebr.part_next,SEEK_SET);
+                        fread (&ebr, sizeof(ebr), 1,f);
+                    }
+                }
+            }
+            fseek(f, 0, SEEK_SET);
+            fwrite(&mbr, sizeof(mbr), 1, f);
+            fclose(f);
+        }
+}
+
+/*
+    Analizador de comandos
+ */
 void Analizar_Comando(char *linea, char *palabra) {
 
     char aux_String[100] = "";
@@ -408,7 +4232,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             if((strcasecmp(fit,"bf") == 0)||(strcasecmp(fit,"ff") == 0)||(strcasecmp(fit,"wf") == 0)||(strcasecmp(fit,"") == 0)){
                 //Validacion de que el type este correcto
                 if((strcasecmp(type,"p") == 0)||(strcasecmp(type,"e") == 0)||(strcasecmp(type,"l") == 0)||(strcasecmp(type,"") == 0)){
-                    printf("Crearia una particion.\n");
+                    Crear_Particion(name[20], size[10], unit[2], fit[2], type[1], path[100]);
                 }else{
                     printf("\t>Caracter no reconocido.\n\t>Los types validos son: P, E y L.\n");
                 }
@@ -416,7 +4240,7 @@ void Analizar_Comando(char *linea, char *palabra) {
                 printf("\t>Caracter no reconocido.\n\t>Los tipos de fit disponibles son: BF, FF y WF.\n");
             }
         }else if((strcasecmp(delete,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
-            printf("Eliminaria una particion\n");
+            Eliminar_Particiones(delete[4], name[20], ruta_Disco[100]);
         }else{
             printf("\t>No se han escrito todos los datos esenciales, por favor intentelo nuevamente...\n");
         }
@@ -450,7 +4274,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             }
             temp = strtok(NULL, "::");
         }
-        printf("Montaria una particion.\n");
+        Montar(name[20], path[100]);
 
     //Area para desmontar particiones
     }else if(strcasecmp(palabra, "unmount") == 0){
@@ -462,7 +4286,7 @@ void Analizar_Comando(char *linea, char *palabra) {
         }else{
                 printf("\t>Comando invalido, para desmontar debe ingresar el id asignado a la particion.\n");
         }
-        printf("Desmonta una particion.\n");
+        Desmontar(id[4]);
     }else if(strcasecmp(palabra, "rep") == 0){
         char *temp = strtok(linea, " ");
         temp = strtok(NULL, "::");
