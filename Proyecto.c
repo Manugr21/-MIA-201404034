@@ -119,9 +119,15 @@ void    Crear_Particion(char name[20], char size[10], char unit[2], char fit[2],
 void    Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[100], int size);
 void    Eliminar_Particiones(char delet[4], char name[20], char path[100]);
 
+void    Rep_EBR(FILE *fp, FILE *f, struct EBR ebr);
+
 //Fase 2
 //Analizador
 void    Analizar_Comando(char *linea, char *palabra);
+void    Rep_MBR(char path[100], char ruta_Destino[150]);
+void    Rep_EBR_Disco(FILE *fp, FILE *f, struct EBR ebr);
+void    Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador);
+void    Rep_Disco(char path[100], char pSalida[150]);
 
 /*
 	El MAIN
@@ -4055,6 +4061,277 @@ void Desmontar(char id[4]){
             fwrite(&mbr, sizeof(mbr), 1, f);
             fclose(f);
         }
+}
+
+/*
+    Reportes
+ */
+void Rep_EBR(FILE *fp, FILE *f, struct EBR ebr){
+    if(ebr.part_status != 'n'){
+        fprintf ( fp, "%s [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n", ebr.part_name);
+        fprintf ( fp, "<tr><td><b>%s</b></td><td>Valor</td></tr>\n",ebr.part_name);
+        fprintf ( fp, "<tr><td><b>part_status</b></td><td><b>%c</b></td></tr>\n",ebr.part_status);
+        fprintf ( fp, "<tr><td><b>part_fit</b></td><td><b>%c</b></td></tr>\n",ebr.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start</b></td><td><b>%d</b></td></tr>\n",ebr.part_start);
+        fprintf ( fp, "<tr><td><b>part_size</b></td><td><b>%d</b></td></tr>\n",ebr.part_size);
+        fprintf ( fp, "<tr><td><b>part_next</b></td><td><b>%d</b></td></tr>\n",ebr.part_next);
+        fprintf ( fp, "<tr><td><b>part_name</b></td><td><b>%d</b></td></tr>\n",ebr.part_name);
+        fprintf ( fp, "</table>>];\n");
+        if(ebr.part_next != -1){
+            fseek(f,ebr.part_next,SEEK_SET);
+            fread (&ebr, sizeof(ebr), 1,f);
+            Rep_EBR(fp, f, ebr);
+        }
+    }
+}
+
+void Rep_MBR(char path[100], char ruta_Destino[150]){
+    struct MBR mbr;
+    struct EBR ebr;
+    FILE *f;
+    if((fopen (path, "rb+")) != NULL){
+
+        f = fopen (path, "rb+");
+        FILE *fp = fopen ( "/home/manugr/Desktop/reporteMbr.dot", "w" );
+        fread (&mbr, sizeof(mbr), 1,f);
+        fprintf ( fp, "digraph \"mbr\" {\n");
+        fprintf ( fp, "node [shape=plaintext]\n");
+        fprintf ( fp, "nodoMbr [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n");
+        fprintf ( fp, "<tr><td><b>%s</b></td></tr>\n", path);
+        fprintf ( fp, "<tr><td><b>mbr_tamano(bytes)</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_tamano);
+        fprintf ( fp, "<tr><td><b>mbr_fecha_creacion</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_fecha_creacion);
+        fprintf ( fp, "<tr><td><b>mbr_disk_signature</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_disk_signature);
+        TAG = 0;
+
+        if(mbr.mbr_partition_1.part_status != 'n'){
+        fprintf ( fp, "<tr><td><b>part_status_1</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_1.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_1</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_1.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_1</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_1.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_1</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_1.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_1</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_1.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_1</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_1.part_name);
+        if(mbr.mbr_partition_1.part_type == 'e'){
+            fseek(f,mbr.mbr_partition_1.part_start,SEEK_SET);
+            fread (&ebr, sizeof(ebr), 1,f);
+            TAG = 10;
+        }
+        }
+        if(mbr.mbr_partition_2.part_status != 'n'){
+        fprintf ( fp, "<tr><td><b>part_status_2</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_2.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_2</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_2.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_2</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_2.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_2</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_2.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_2</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_2.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_2</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_2.part_name);
+        if(mbr.mbr_partition_2.part_type == 'e'){
+            fseek(f,mbr.mbr_partition_2.part_start,SEEK_SET);
+            fread (&ebr, sizeof(ebr), 1,f);
+            TAG = 10;
+        }
+        }
+        if(mbr.mbr_partition_3.part_status != 'n'){
+        fprintf ( fp, "<tr><td><b>part_status_3</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_3.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_3</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_3.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_3</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_3.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_3</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_3.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_3</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_3.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_3</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_3.part_name);
+        if(mbr.mbr_partition_3.part_type == 'e'){
+            fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
+            fread (&ebr, sizeof(ebr), 1,f);
+            TAG = 10;
+        }
+        }
+        if(mbr.mbr_partition_4.part_status != 'n'){
+        fprintf ( fp, "<tr><td><b>part_status_4</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_4.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_4</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_4.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_4</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_4.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_4</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_4.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_4</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_4.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_4</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_4.part_name);
+        if(mbr.mbr_partition_4.part_type == 'e'){
+            fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
+            fread (&ebr, sizeof(ebr), 1,f);
+            TAG = 10;
+        }
+        }
+        fprintf ( fp, "</table>>];\n");
+
+        if(TAG == 10){
+        ebrInicial = ebr.part_next;
+        Rep_EBR(fp,f,ebr);
+        }
+
+        fprintf ( fp, "}\n");
+        fclose(f);
+        fclose(fp);
+        char temp[200];
+        sprintf(temp, "dot -Tpng \"/home/manugr/Desktop/reporteMbr.dot\" -o \"%s\"", ruta_Destino);
+        system(temp);
+        strcpy(temp,"");
+        sprintf(temp, "run-mailcap \"%s\" &", ruta_Destino);
+        system(temp);
+    }else{
+        printf("\t>El archivo no existe!\n");
+    }
+
+}
+
+void Rep_EBR_Disco(FILE *fp, FILE *f, struct EBR ebr){
+    if(ebr.part_status != 'n'){
+        fprintf ( fp, "extendida%s [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n",ebr.part_name);
+        fprintf ( fp, "<tr><td><b>EBR</b></td><td><b>logica(%s)</b></td></tr>\n",ebr.part_name);
+        fprintf ( fp, "</table>>];\n");
+        if(ebr.part_next != -1){
+            fseek(f,ebr.part_next,SEEK_SET);
+            fread (&ebr, sizeof(ebr), 1,f);
+            Rep_EBR_Disco(fp, f, ebr);
+        }
+    }
+}
+
+void Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador){
+    TAG = 0;
+    struct EBR ebr;
+    if(mbr.mbr_partition_1.part_status != 'n'){
+        if(mbr.mbr_partition_1.part_start == comparador){
+            comparador += mbr.mbr_partition_1.part_size;
+            TAG = 10;
+            if(mbr.mbr_partition_1.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_1.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                ebrInicial = ebr.part_next;
+                if(ebr.part_status == 'n'){
+                    fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
+                }else{
+                    fprintf ( fp, "subgraph sub { \n");
+                    Rep_EBR_Disco(fp,f,ebr);
+                    fprintf ( fp, "}");
+                }
+            }else{
+                fprintf ( fp, "primaria%s [label=\"primaria(%s)\"];", mbr.mbr_partition_1.part_name, mbr.mbr_partition_1.part_name);
+            }
+        }
+    }
+    if((mbr.mbr_partition_2.part_status != 'n')&&(TAG != 10)){
+        if(mbr.mbr_partition_2.part_start == comparador){
+            comparador += mbr.mbr_partition_2.part_size;
+            TAG = 10;
+            if(mbr.mbr_partition_2.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_2.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                ebrInicial = ebr.part_next;
+                if(ebr.part_status == 'n'){
+                    fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
+                }else{
+                    fprintf ( fp, "subgraph sub { \n");
+                    Rep_EBR_Disco(fp,f,ebr);
+                    fprintf ( fp, "}");
+                }
+
+            }else{
+                fprintf ( fp, "primaria%s [label=\"primaria(%s)\"];", mbr.mbr_partition_2.part_name, mbr.mbr_partition_2.part_name);
+            }
+        }
+    }
+    if((mbr.mbr_partition_3.part_status != 'n')&&(TAG != 10)){
+        if(mbr.mbr_partition_3.part_start == comparador){
+            comparador += mbr.mbr_partition_3.part_size;
+            TAG = 10;
+            if(mbr.mbr_partition_3.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                ebrInicial = ebr.part_next;
+                if(ebr.part_status == 'n'){
+                    fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
+                }else{
+                    fprintf ( fp, "subgraph sub1 { \n");
+                    Rep_EBR_Disco(fp,f,ebr);
+                    fprintf ( fp, "}");
+                }
+            }else{
+                fprintf ( fp, "primaria%s [label=\"primaria(%s)\"];", mbr.mbr_partition_3.part_name, mbr.mbr_partition_3.part_name);
+            }
+        }
+    }
+    if((mbr.mbr_partition_4.part_status != 'n')&&(TAG != 10)){
+        if(mbr.mbr_partition_4.part_start == comparador){
+            comparador += mbr.mbr_partition_4.part_size;
+            TAG = 10;
+            if(mbr.mbr_partition_4.part_type == 'e'){
+                fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
+                fread (&ebr, sizeof(ebr), 1,f);
+                ebrInicial = ebr.part_next;
+                if(ebr.part_status == 'n'){
+                    fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
+                }else{
+                    fprintf ( fp, "subgraph sub1 { \n");
+                    Rep_EBR_Disco(fp,f,ebr);
+                    fprintf ( fp, "}");
+                }
+            }else{
+                fprintf ( fp, "primaria%s [label=\"primaria(%s)\"];", mbr.mbr_partition_4.part_name, mbr.mbr_partition_4.part_name);
+            }
+        }
+    }
+
+    int respaldo = 984315;
+    if(TAG == 0){
+        fprintf ( fp, "libre [label=\"libre\"];");
+        respaldo = comparador;
+
+        if(comparador < mbr.mbr_partition_1.part_start){
+            respaldo = mbr.mbr_partition_1.part_start;
+            TAG = 11;
+        }
+        if((comparador < mbr.mbr_partition_2.part_start)&&((respaldo > mbr.mbr_partition_2.part_start)||(TAG == 0))){
+            respaldo = mbr.mbr_partition_2.part_start;
+            TAG = 11;
+        }
+        if((comparador < mbr.mbr_partition_3.part_start)&&((respaldo > mbr.mbr_partition_3.part_start)||(TAG == 0))){
+            respaldo = mbr.mbr_partition_3.part_start;
+            TAG = 11;
+        }
+        if((comparador < mbr.mbr_partition_4.part_start)&&((respaldo > mbr.mbr_partition_4.part_start)||(TAG == 0))){
+            respaldo = mbr.mbr_partition_4.part_start;
+            TAG = 11;
+        }
+    }
+
+    if(TAG == 10){
+        Rep_Disco_Interno(fp,f,mbr,comparador);
+    }else if(comparador < respaldo){
+        Rep_Disco_Interno(fp,f,mbr,respaldo);
+    }
+}
+
+void Rep_Disco(char path[100], char pSalida[150]){
+    struct MBR mbr;
+    struct EBR ebr;
+    FILE *f;
+    if((fopen (path, "rb+")) != NULL){
+        f = fopen (path, "rb+");
+            FILE *fp = fopen ( "/home/manugr/Desktop/reporteDisk.dot", "w" );
+        fread (&mbr, sizeof(mbr), 1,f);
+        fprintf ( fp, "digraph disk { \n subgraph sub { \n node [shape=rectangle style=filled color=black fillcolor=white];\n");
+        fprintf ( fp, "mbr [label=\"MBR\"];");
+        TAG = 0;
+
+        Rep_Disco_Interno(fp,f,mbr,sizeof(mbr));
+
+        fprintf ( fp, "}\n }\n");
+
+        fclose(f);
+        fclose(fp);
+        char temp[200];
+        sprintf(temp, "dot -Tpng \"/home/manugr/Desktop/reporteDisk.dot\" -o \"%s\"", pSalida);
+        system(temp);
+        strcpy(temp,"");
+        sprintf(temp, "run-mailcap \"%s\" &", pSalida);
+        system(temp);
+    }else{
+        printf("\t>El archivo no existe!\n");
+    }
 }
 
 /*
