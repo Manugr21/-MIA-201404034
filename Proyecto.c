@@ -111,23 +111,24 @@ int     iWhile;
 void    Ingresar_Comando();
 char*   montador(char name[20], char path[100]);
 void    Crear_Directorios_Reales(char path[100]);
+void    Crear_Directorios_Reales_Con_Nombre(char path[100]);
 
 //Fase 1
 void    Crear_Disco(char size[10], char name[20], char ruta_Disco[100]);
 void    Eliminar_Disco(char path[100]);
 void    Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], char type[1], char path[100]);
-void    Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[100], int size);
+void    Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[20], int size);
 void    Eliminar_Particiones(char delet[4], char name[20], char path[100]);
 
-void    Rep_EBR(FILE *fp, FILE *f, struct EBR ebr);
-
-//Fase 2
-//Analizador
-void    Analizar_Comando(char *linea, char *palabra);
 void    Rep_MBR(char path[100], char ruta_Destino[150]);
 void    Rep_EBR_Disco(FILE *fp, FILE *f, struct EBR ebr);
 void    Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador);
 void    Rep_Disco(char path[100], char pSalida[150]);
+//Fase 2
+
+//Analizador
+void    Analizar_Comando(char *linea, char *palabra);
+
 
 /*
 	El MAIN
@@ -140,7 +141,7 @@ int main(){
     time_t t;
     srand((unsigned) time(&t));
     strcpy(Abecedario,"abcdefghijklmnopqrstuvwxyz");
-    printf(">>Para apagar el sistema ingrese el comando \"exit\".\n>> Sistema listo, porfavor introduzca un comando...\n");
+    printf(">>Para apagar el sistema ingrese el comando \"exit\".\n>> Sistema listo!\n");
     Ingresar_Comando();
     printf("Apagando...\n");
     return 0;
@@ -150,7 +151,7 @@ int main(){
 	Metodos Genericos
 */
 void Ingresar_Comando() {
-
+    printf("Porfavor introduzca un comando...\n");
     char temp[200];
     TAG = 0;
     scanf(" %[^\n]s", Normal);
@@ -192,14 +193,23 @@ char* montador( char name[20], char path[100]){
 }
 
 void Crear_Directorios_Reales(char path[100]){
-    //const char x = '/';
-    //char *fin;
     if(path[0] == '/'){
-        //fin = strrchr(path, x);
         char terminal_cmd[300];
         strcpy (terminal_cmd,  "mkdir -p '");
-        //strncat(terminal_cmd, path, strlen(path)-strlen(fin));
         strncat(terminal_cmd, path, strlen(path)-1);
+        strcat(terminal_cmd, "'");
+        system(terminal_cmd);
+    }
+}
+
+void Crear_Directorios_Reales_Con_Nombre(char path[100]){
+    const char x = '/';
+    char *fin;
+    if(path[0] == '/'){
+        fin = strrchr(path, x);
+        char terminal_cmd[300];
+        strcpy (terminal_cmd,  "mkdir -p '");
+        strncat(terminal_cmd, path, strlen(path)-strlen(fin));
         strcat(terminal_cmd, "'");
         system(terminal_cmd);
     }
@@ -215,10 +225,10 @@ void Crear_Disco(char size[10], char name[20], char ruta_Disco[100]){
     mbr.mbr_tamano = convertido * 1024 * Multiplicador;
     time(&mbr.mbr_fecha_creacion);
     mbr.mbr_disk_signature = (rand() % 26);
-    mbr.mbr_partition_1.part_status = '0';
-    mbr.mbr_partition_2.part_status = '0';
-    mbr.mbr_partition_3.part_status = '0';
-    mbr.mbr_partition_4.part_status = '0';
+    mbr.mbr_partition_1.part_status = 'n';
+    mbr.mbr_partition_2.part_status = 'n';
+    mbr.mbr_partition_3.part_status = 'n';
+    mbr.mbr_partition_4.part_status = 'n';
 
     //Inicio de la escritura del disco
     char ruta_temp[120];
@@ -309,7 +319,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
     }
     
     char charFit;
-    if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
+    if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0) || (fit==NULL)) {
         charFit = 'w';
     }else if((strcasecmp(fit,"bf") == 0)){
         charFit = 'b';
@@ -323,7 +333,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
 
         if(Multiplicador != 0){
             if(Particiones_N == 4){
-                printf("\t>Solo se pueden crear 4 particiones.");
+                printf("\t>Solo se pueden crear 4 particiones.\n");
             }else if(Particiones_N == 0){
                 if(mbr.mbr_tamano >= strtol(size, (char**)NULL, 10)*Multiplicador){
                     mbr.mbr_partition_1.part_status = 'd';
@@ -332,11 +342,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                     strcpy(mbr.mbr_partition_1.part_name, name);
 
                     if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                        mbr.mbr_partition_1.part_fit = 'wf';
+                        mbr.mbr_partition_1.part_fit = 'w';
                     }else if ((strcasecmp(fit,"bf") == 0)){
-                        mbr.mbr_partition_1.part_fit = 'bf';
+                        mbr.mbr_partition_1.part_fit = 'b';
                     }else{
-                        mbr.mbr_partition_1.part_fit = 'ff';
+                        mbr.mbr_partition_1.part_fit = 'f';
                     }
 
                     if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
@@ -360,6 +370,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                     if(TAG == 0){
                         fseek(f, 0, SEEK_SET);
                         fwrite(&mbr, sizeof(mbr), 1, f);
+                        printf("\t>>Particion creada exitosamente!\n");
                     }else{
                         printf("\t>No se pudieron guardar los cambios\n");
                     }
@@ -391,11 +402,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         mbr.mbr_partition_2.part_start = Particiones_Ini;
                         strcpy(mbr.mbr_partition_2.part_name, name);
                         if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'wf';
+                            mbr.mbr_partition_2.part_fit = 'w';
                         }else if ((strcasecmp(fit,"bf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'bf';
+                            mbr.mbr_partition_2.part_fit = 'b';
                         }else{
-                            mbr.mbr_partition_1.part_fit = 'ff';
+                            mbr.mbr_partition_2.part_fit = 'f';
                         }
                         if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
                             mbr.mbr_partition_2.part_type = 'p';
@@ -409,6 +420,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -418,6 +430,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
@@ -446,11 +459,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         strcpy(mbr.mbr_partition_1.part_name, name);
                         
                         if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'wf';
+                            mbr.mbr_partition_1.part_fit = 'w';
                         }else if((strcasecmp(fit,"bf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'bf';
+                            mbr.mbr_partition_1.part_fit = 'b';
                         }else{
-                            mbr.mbr_partition_1.part_fit = 'ff';
+                            mbr.mbr_partition_1.part_fit = 'f';
                         }
 
                         if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
@@ -465,6 +478,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -474,6 +488,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios\n");
                         }
@@ -501,11 +516,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         mbr.mbr_partition_1.part_start = Particiones_Ini;
                         strcpy(mbr.mbr_partition_1.part_name, name);
                         if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'wf';
+                            mbr.mbr_partition_1.part_fit = 'w';
                         }else if(strcasecmp(fit,"bf") == 0){
-                            mbr.mbr_partition_1.part_fit = 'bf';
+                            mbr.mbr_partition_1.part_fit = 'b';
                         }else{
-                            mbr.mbr_partition_1.part_fit = 'ff';
+                            mbr.mbr_partition_1.part_fit = 'f';
                         }
                         if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
                             mbr.mbr_partition_1.part_type = 'p';
@@ -554,11 +569,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         mbr.mbr_partition_1.part_start = Particiones_Ini;
                         strcpy(mbr.mbr_partition_1.part_name, name);
                         if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'wf';
+                            mbr.mbr_partition_1.part_fit = 'w';
                         }else if(strcasecmp(fit,"bf") == 0){
-                            mbr.mbr_partition_1.part_fit = 'bf';
+                            mbr.mbr_partition_1.part_fit = 'b';
                         }else{
-                            mbr.mbr_partition_1.part_fit = 'ff';
+                            mbr.mbr_partition_1.part_fit = 'f';
                         }
                         if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
                             mbr.mbr_partition_1.part_type = 'p';
@@ -572,6 +587,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -581,6 +597,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
@@ -802,8 +819,6 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         }
                     }//ya termino
 
-
-
                     if((Particiones_Fin-Particiones_Ini) < strtol(size, (char**)NULL, 10)*Multiplicador){
                         printf("\t>No hay espacio suficiente.\n");
                     }else{
@@ -812,11 +827,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         mbr.mbr_partition_1.part_start = Particiones_Ini;
                         strcpy(mbr.mbr_partition_1.part_name, name);
                         if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                            mbr.mbr_partition_1.part_fit = 'wf';
+                            mbr.mbr_partition_1.part_fit = 'w';
                         }else if(strcasecmp(fit,"bf") == 0){
-                            mbr.mbr_partition_1.part_fit = 'bf';
+                            mbr.mbr_partition_1.part_fit = 'b';
                         }else{
-                            mbr.mbr_partition_1.part_fit = 'ff';
+                            mbr.mbr_partition_1.part_fit = 'f';
                         }
 
                         if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
@@ -831,6 +846,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -840,6 +856,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
@@ -1087,6 +1104,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -1096,6 +1114,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
@@ -1339,6 +1358,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -1348,6 +1368,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
@@ -1535,7 +1556,6 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                             printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
                                         }
                                     }
-
                                 }
                             }
                         }else{
@@ -1890,7 +1910,6 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                         printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
                                     }
                                 }
-
                             }
                         }
                     }
@@ -1903,11 +1922,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         mbr.mbr_partition_1.part_start = Particiones_Ini;
                         strcpy(mbr.mbr_partition_1.part_name, name);
                         if((strcasecmp(fit,"") == 0)||(strcasecmp(fit,"wf") == 0)){
-                        mbr.mbr_partition_1.part_fit = 'wf';
+                            mbr.mbr_partition_1.part_fit = 'w';
                         }else if(strcasecmp(fit,"bf") == 0){
-                            mbr.mbr_partition_1.part_fit = 'bf';
+                            mbr.mbr_partition_1.part_fit = 'b';
                         }else{
-                            mbr.mbr_partition_1.part_fit = 'ff';
+                            mbr.mbr_partition_1.part_fit = 'f';
                         }
                         if((strcasecmp(type,"") == 0)||(strcasecmp(type,"p") == 0)){
                             mbr.mbr_partition_1.part_type = 'p';
@@ -1921,6 +1940,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_1.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -1930,11 +1950,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
                     }
-
                 }else if(mbr.mbr_partition_2.part_status == 'n'){
                     if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_4.part_start)){
                         if((mbr.mbr_partition_3.part_start < mbr.mbr_partition_1.part_start)){
@@ -2024,7 +2044,6 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                             printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
                                         }
                                     }
-
                                 }
                             }else{
                                 if(mbr.mbr_partition_3.part_start == sizeof(mbr)){
@@ -2495,6 +2514,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f, mbr.mbr_partition_2.part_start, SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -2504,11 +2524,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
                     }
-
                 }else if(mbr.mbr_partition_3.part_status == 'n'){
                     if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_1.part_start)){
                         if((mbr.mbr_partition_4.part_start < mbr.mbr_partition_2.part_start)){
@@ -2863,7 +2883,6 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                             printf("\t>No hay espacio suficiente para crear la particion deseada.\n");
                                         }
                                     }
-
                                 }
                             }else{
                                 if(mbr.mbr_partition_1.part_start == sizeof(mbr)){
@@ -3070,6 +3089,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -3079,11 +3099,11 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
                     }
-
                 }else if(mbr.mbr_partition_4.part_status == 'n'){
                     if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_2.part_start)){
                         if((mbr.mbr_partition_1.part_start < mbr.mbr_partition_3.part_start)){
@@ -3644,6 +3664,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                                 ebr.part_status = 'n';
                                 fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
                                 fwrite(&ebr, sizeof(ebr), 1, f);
+                                printf("\t>>Particion creada exitosamente!\n");
                             }else{
                                 TAG = 1;
                                 printf("\t>Solo puede haber una particion extendida.\n");
@@ -3653,6 +3674,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
                         if(TAG == 0){
                             fseek(f, 0, SEEK_SET);
                             fwrite(&mbr, sizeof(mbr), 1, f);
+                            printf("\t>>Particion creada exitosamente!\n");
                         }else{
                             printf("\t>No se pudieron guardar los cambios.\n");
                         }
@@ -3691,7 +3713,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
     fclose(f);
 }
 
-void Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[100], int size){
+void Crear_Particion_Logica(FILE *f, int inicio, int limite, char fit[2], char name[20], int size){
     struct EBR ebr;
     struct EBR ebrNuevo;
     fseek(f, inicio, SEEK_SET);
@@ -4066,6 +4088,50 @@ void Desmontar(char id[4]){
 /*
     Reportes
  */
+void Rep(char ruta_Destino[100],  char id[4], char name[10]){
+    char Letra_Disco = id[2], n_S[3], p[2];
+    char nameP[20], ruta_Disco[250];
+    sprintf(n_S, "%c%c", id[3], id[4]);
+    aux_int = 0;
+    while(Letra_Disco != Abecedario[aux_int]){
+        aux_int++;
+    }
+    convertido = (int) strtol(n_S, (char **)NULL, 10);
+    strcpy(ruta_Disco, Montador[aux_int][0]);
+    strcpy(nameP, Montador[aux_int][convertido]);
+    strcpy(p, Montador[aux_int][convertido]);
+    
+    if(strcasecmp(Montador[aux_int][convertido],"") != 0){
+        if(strcasecmp(name,"mbr") == 0){
+            Rep_MBR(ruta_Disco, ruta_Destino);
+        }else if(strcasecmp(name,"disk") == 0){
+            Rep_Disco(ruta_Disco, ruta_Destino);
+        }else if(strcasecmp(name,"inode") == 0){
+            printf("Reporte de inodo.\n");
+        }else if(strcasecmp(name,"block") == 0){
+            printf("Reporte de bloque.\n");
+        }else if(strcasecmp(name,"bm_inode") == 0){
+            printf("Reporte del inodo tipo bitmap.\n");
+        }else if(strcasecmp(name,"bm_block") == 0){
+            printf("Reporte de bloque tipo bitmap.\n");
+        }else if(strcasecmp(name,"tree") == 0){
+            printf("Reporte del arbol.\n");
+        }else if(strcasecmp(name,"sb") == 0){
+            printf("Reporte del super bloque.\n");
+        }else if(strcasecmp(name,"file") == 0){
+            printf("Reporte de un arhivo.\n");
+        }else if(strcasecmp(name,"ls+i") == 0){
+            printf("Reporte de permisos i.\n");
+        }else if(strcasecmp(name,"ls+l") == 0){
+            printf("Reporte de permisos l.\n");
+        }else if(strcasecmp(name,"log") == 0){
+            printf("Reporte de la bitacora\n");
+        }
+    }else{
+        printf("Name invalido, porfavor intentelo nuevamente...\n");
+    }
+}
+
 void Rep_EBR(FILE *fp, FILE *f, struct EBR ebr){
     if(ebr.part_status != 'n'){
         fprintf ( fp, "%s [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n", ebr.part_name);
@@ -4075,7 +4141,7 @@ void Rep_EBR(FILE *fp, FILE *f, struct EBR ebr){
         fprintf ( fp, "<tr><td><b>part_start</b></td><td><b>%d</b></td></tr>\n",ebr.part_start);
         fprintf ( fp, "<tr><td><b>part_size</b></td><td><b>%d</b></td></tr>\n",ebr.part_size);
         fprintf ( fp, "<tr><td><b>part_next</b></td><td><b>%d</b></td></tr>\n",ebr.part_next);
-        fprintf ( fp, "<tr><td><b>part_name</b></td><td><b>%d</b></td></tr>\n",ebr.part_name);
+        fprintf ( fp, "<tr><td><b>part_name</b></td><td><b>%s</b></td></tr>\n",ebr.part_name);
         fprintf ( fp, "</table>>];\n");
         if(ebr.part_next != -1){
             fseek(f,ebr.part_next,SEEK_SET);
@@ -4092,24 +4158,25 @@ void Rep_MBR(char path[100], char ruta_Destino[150]){
     if((fopen (path, "rb+")) != NULL){
 
         f = fopen (path, "rb+");
-        FILE *fp = fopen ( "/home/manugr/Desktop/reporteMbr.dot", "w" );
-        fread (&mbr, sizeof(mbr), 1,f);
+        FILE *fp = fopen ( "/home/manugr/Desktop/MBR.dot", "w" );
+        rewind(f);
+        fread(&mbr, sizeof(mbr), 1, f);
         fprintf ( fp, "digraph \"mbr\" {\n");
         fprintf ( fp, "node [shape=plaintext]\n");
         fprintf ( fp, "nodoMbr [label=<<table border=\"0\" cellborder=\"1\" cellspacing=\"0\">\n");
-        fprintf ( fp, "<tr><td><b>%s</b></td></tr>\n", path);
-        fprintf ( fp, "<tr><td><b>mbr_tamano(bytes)</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_tamano);
-        fprintf ( fp, "<tr><td><b>mbr_fecha_creacion</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_fecha_creacion);
-        fprintf ( fp, "<tr><td><b>mbr_disk_signature</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_disk_signature);
+        fprintf ( fp, "<tr><td><b> %s </b></td></tr>\n", path);
+        fprintf ( fp, "<tr><td><b>mbr_tamano(bytes)</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_tamano);
+        fprintf ( fp, "<tr><td><b>mbr_fecha_creacion</b></td><td><b> %s </b></td></tr>\n",ctime(&mbr.mbr_fecha_creacion));
+        fprintf ( fp, "<tr><td><b>mbr_disk_signature</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_disk_signature);
         TAG = 0;
 
         if(mbr.mbr_partition_1.part_status != 'n'){
-        fprintf ( fp, "<tr><td><b>part_status_1</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_1.part_status);
-        fprintf ( fp, "<tr><td><b>part_type_1</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_1.part_type);
-        fprintf ( fp, "<tr><td><b>part_fit_1</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_1.part_fit);
-        fprintf ( fp, "<tr><td><b>part_start_1</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_1.part_start);
-        fprintf ( fp, "<tr><td><b>part_size_1</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_1.part_size);
-        fprintf ( fp, "<tr><td><b>part_name_1</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_1.part_name);
+        fprintf ( fp, "<tr><td><b>part_status_1</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_1.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_1</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_1.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_1</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_1.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_1</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_1.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_1</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_1.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_1</b></td><td><b> %s </b></td></tr>\n",mbr.mbr_partition_1.part_name);
         if(mbr.mbr_partition_1.part_type == 'e'){
             fseek(f,mbr.mbr_partition_1.part_start,SEEK_SET);
             fread (&ebr, sizeof(ebr), 1,f);
@@ -4117,12 +4184,12 @@ void Rep_MBR(char path[100], char ruta_Destino[150]){
         }
         }
         if(mbr.mbr_partition_2.part_status != 'n'){
-        fprintf ( fp, "<tr><td><b>part_status_2</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_2.part_status);
-        fprintf ( fp, "<tr><td><b>part_type_2</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_2.part_type);
-        fprintf ( fp, "<tr><td><b>part_fit_2</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_2.part_fit);
-        fprintf ( fp, "<tr><td><b>part_start_2</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_2.part_start);
-        fprintf ( fp, "<tr><td><b>part_size_2</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_2.part_size);
-        fprintf ( fp, "<tr><td><b>part_name_2</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_2.part_name);
+        fprintf ( fp, "<tr><td><b>part_status_2</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_2.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_2</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_2.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_2</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_2.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_2</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_2.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_2</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_2.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_2</b></td><td><b> %s </b></td></tr>\n",mbr.mbr_partition_2.part_name);
         if(mbr.mbr_partition_2.part_type == 'e'){
             fseek(f,mbr.mbr_partition_2.part_start,SEEK_SET);
             fread (&ebr, sizeof(ebr), 1,f);
@@ -4130,12 +4197,12 @@ void Rep_MBR(char path[100], char ruta_Destino[150]){
         }
         }
         if(mbr.mbr_partition_3.part_status != 'n'){
-        fprintf ( fp, "<tr><td><b>part_status_3</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_3.part_status);
-        fprintf ( fp, "<tr><td><b>part_type_3</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_3.part_type);
-        fprintf ( fp, "<tr><td><b>part_fit_3</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_3.part_fit);
-        fprintf ( fp, "<tr><td><b>part_start_3</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_3.part_start);
-        fprintf ( fp, "<tr><td><b>part_size_3</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_3.part_size);
-        fprintf ( fp, "<tr><td><b>part_name_3</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_3.part_name);
+        fprintf ( fp, "<tr><td><b>part_status_3</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_3.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_3</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_3.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_3</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_3.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_3</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_3.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_3</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_3.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_3</b></td><td><b> %s </b></td></tr>\n",mbr.mbr_partition_3.part_name);
         if(mbr.mbr_partition_3.part_type == 'e'){
             fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
             fread (&ebr, sizeof(ebr), 1,f);
@@ -4143,12 +4210,12 @@ void Rep_MBR(char path[100], char ruta_Destino[150]){
         }
         }
         if(mbr.mbr_partition_4.part_status != 'n'){
-        fprintf ( fp, "<tr><td><b>part_status_4</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_4.part_status);
-        fprintf ( fp, "<tr><td><b>part_type_4</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_4.part_type);
-        fprintf ( fp, "<tr><td><b>part_fit_4</b></td><td><b>%c</b></td></tr>\n",mbr.mbr_partition_4.part_fit);
-        fprintf ( fp, "<tr><td><b>part_start_4</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_4.part_start);
-        fprintf ( fp, "<tr><td><b>part_size_4</b></td><td><b>%d</b></td></tr>\n",mbr.mbr_partition_4.part_size);
-        fprintf ( fp, "<tr><td><b>part_name_4</b></td><td><b>%s</b></td></tr>\n",mbr.mbr_partition_4.part_name);
+        fprintf ( fp, "<tr><td><b>part_status_4</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_4.part_status);
+        fprintf ( fp, "<tr><td><b>part_type_4</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_4.part_type);
+        fprintf ( fp, "<tr><td><b>part_fit_4</b></td><td><b> %c </b></td></tr>\n",mbr.mbr_partition_4.part_fit);
+        fprintf ( fp, "<tr><td><b>part_start_4</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_4.part_start);
+        fprintf ( fp, "<tr><td><b>part_size_4</b></td><td><b> %d </b></td></tr>\n",mbr.mbr_partition_4.part_size);
+        fprintf ( fp, "<tr><td><b>part_name_4</b></td><td><b> %s </b></td></tr>\n",mbr.mbr_partition_4.part_name);
         if(mbr.mbr_partition_4.part_type == 'e'){
             fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
             fread (&ebr, sizeof(ebr), 1,f);
@@ -4158,7 +4225,7 @@ void Rep_MBR(char path[100], char ruta_Destino[150]){
         fprintf ( fp, "</table>>];\n");
 
         if(TAG == 10){
-        ebrInicial = ebr.part_next;
+        EBR_Ini = ebr.part_next;
         Rep_EBR(fp,f,ebr);
         }
 
@@ -4166,7 +4233,7 @@ void Rep_MBR(char path[100], char ruta_Destino[150]){
         fclose(f);
         fclose(fp);
         char temp[200];
-        sprintf(temp, "dot -Tpng \"/home/manugr/Desktop/reporteMbr.dot\" -o \"%s\"", ruta_Destino);
+        sprintf(temp, "dot -Tpng \"/home/manugr/Desktop/MBR.dot\" -o \"%s\"", ruta_Destino);
         system(temp);
         strcpy(temp,"");
         sprintf(temp, "run-mailcap \"%s\" &", ruta_Destino);
@@ -4200,7 +4267,7 @@ void Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador){
             if(mbr.mbr_partition_1.part_type == 'e'){
                 fseek(f,mbr.mbr_partition_1.part_start,SEEK_SET);
                 fread (&ebr, sizeof(ebr), 1,f);
-                ebrInicial = ebr.part_next;
+                EBR_Ini = ebr.part_next;
                 if(ebr.part_status == 'n'){
                     fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
                 }else{
@@ -4220,7 +4287,7 @@ void Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador){
             if(mbr.mbr_partition_2.part_type == 'e'){
                 fseek(f,mbr.mbr_partition_2.part_start,SEEK_SET);
                 fread (&ebr, sizeof(ebr), 1,f);
-                ebrInicial = ebr.part_next;
+                EBR_Ini = ebr.part_next;
                 if(ebr.part_status == 'n'){
                     fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
                 }else{
@@ -4241,7 +4308,7 @@ void Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador){
             if(mbr.mbr_partition_3.part_type == 'e'){
                 fseek(f,mbr.mbr_partition_3.part_start,SEEK_SET);
                 fread (&ebr, sizeof(ebr), 1,f);
-                ebrInicial = ebr.part_next;
+                EBR_Ini = ebr.part_next;
                 if(ebr.part_status == 'n'){
                     fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
                 }else{
@@ -4261,7 +4328,7 @@ void Rep_Disco_Interno(FILE *fp, FILE *f, struct MBR mbr, int comparador){
             if(mbr.mbr_partition_4.part_type == 'e'){
                 fseek(f,mbr.mbr_partition_4.part_start,SEEK_SET);
                 fread (&ebr, sizeof(ebr), 1,f);
-                ebrInicial = ebr.part_next;
+                EBR_Ini = ebr.part_next;
                 if(ebr.part_status == 'n'){
                     fprintf ( fp, "extendida [label=\"Extendida(vacia)\"];");
                 }else{
@@ -4311,7 +4378,7 @@ void Rep_Disco(char path[100], char pSalida[150]){
     FILE *f;
     if((fopen (path, "rb+")) != NULL){
         f = fopen (path, "rb+");
-            FILE *fp = fopen ( "/home/manugr/Desktop/reporteDisk.dot", "w" );
+            FILE *fp = fopen ( "/home/manugr/Desktop/Disk.dot", "w" );
         fread (&mbr, sizeof(mbr), 1,f);
         fprintf ( fp, "digraph disk { \n subgraph sub { \n node [shape=rectangle style=filled color=black fillcolor=white];\n");
         fprintf ( fp, "mbr [label=\"MBR\"];");
@@ -4324,7 +4391,7 @@ void Rep_Disco(char path[100], char pSalida[150]){
         fclose(f);
         fclose(fp);
         char temp[200];
-        sprintf(temp, "dot -Tpng \"/home/manugr/Desktop/reporteDisk.dot\" -o \"%s\"", pSalida);
+        sprintf(temp, "dot -Tpng \"/home/manugr/Desktop/Disk.dot\" -o \"%s\"", pSalida);
         system(temp);
         strcpy(temp,"");
         sprintf(temp, "run-mailcap \"%s\" &", pSalida);
@@ -4337,9 +4404,9 @@ void Rep_Disco(char path[100], char pSalida[150]){
 /*
     Analizador de comandos
  */
-void Analizar_Comando(char *linea, char *palabra) {
+void Analizar_Comando(char *linea, char *palabra){
 
-    char aux_String[100] = "";
+    char aux_String[100];
     char size[10];
     char unit[2];
     char type[2];
@@ -4348,12 +4415,19 @@ void Analizar_Comando(char *linea, char *palabra) {
     char ruta_Disco[100];
     char ruta_Destino[100];
     char fit[2];
-    char delete[4];
+    char delet[4];
     int  add, dsm;
     char id[5];
     char dfk, dfm, dfh, dfi;
     char fs[3];
-
+    
+    strcpy(delet, "");
+    strcpy(fit, "");
+    strcpy(type, "");
+    strcpy(unit, "");
+    strcpy(ruta_Destino, "");
+    strcpy(ruta_Disco, "");
+    
     //Area de creacion de discos
     if(strcasecmp(palabra, "mkdisk") == 0) {
         char *temp = strtok(linea, " ");
@@ -4392,7 +4466,7 @@ void Analizar_Comando(char *linea, char *palabra) {
                     memmove(temp, temp+1, strlen(temp));
                 }
             	strcpy(name, temp);
-        	}else if(strcasecmp(temp, "\n") == 0){
+            }else if(strcasecmp(temp, "\n") == 0){
 
             }else if(strcasecmp(temp, "\r\n") == 0){
 
@@ -4404,8 +4478,9 @@ void Analizar_Comando(char *linea, char *palabra) {
 
         if((strcasecmp(size,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
 
-        	//Crea los directorios si no existen
+            //Crea los directorios si no existen
             Crear_Directorios_Reales(ruta_Disco);
+            //printf("ruta disco: %s\n",ruta_Disco);
 
             //Asgino el valor de Kilos o Megas
             if(strcasecmp(unit,"k")==0){
@@ -4424,6 +4499,7 @@ void Analizar_Comando(char *linea, char *palabra) {
             }else{
                 printf("\t>Creando disco... \n");
                 Crear_Disco(size, name, ruta_Disco);
+                //printf("Size: %s\nName: %s\nRuta_Disco: %s\n", size, name, ruta_Disco);
             }//Fin del If donde se crea el disco.
         }else{
             printf("\t>Faltan modificadores obligatorios.\n \t>Por favor intentelo nuevamente e ingrese el tamaño y la ruta por lo menos.\n");
@@ -4435,6 +4511,9 @@ void Analizar_Comando(char *linea, char *palabra) {
         temp = strtok(NULL, "::");
         if (strcasecmp(temp,"-path")==0){
             temp = strtok(NULL, " ");
+            if (temp[0] == ':'){
+                memmove(temp, temp+1, strlen(temp));
+            }
             strcpy(aux_String, temp);
             if(aux_String[0] == '\"'){
                 temp++;
@@ -4445,7 +4524,8 @@ void Analizar_Comando(char *linea, char *palabra) {
             }else{
                 strcpy(ruta_Disco, temp);
             }
-            printf("Eliminaria disco");
+            Eliminar_Disco(ruta_Disco);
+            //printf("Ruta_Disco: %s\n", ruta_Disco);
         }else if(strcasecmp(temp, "\n") == 0){
 
         }else if(strcasecmp(temp, "\r\n") == 0){
@@ -4462,12 +4542,21 @@ void Analizar_Comando(char *linea, char *palabra) {
         while(temp != NULL){
             if(strcasecmp(temp,"-size") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(size, temp);
             }else if(strcasecmp(temp,"+unit") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(unit, temp);
             }else if(strcasecmp(temp,"-path") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(aux_String, temp);
                 if(aux_String[0] != '\"'){
                     strcpy(ruta_Disco, temp);
@@ -4480,18 +4569,33 @@ void Analizar_Comando(char *linea, char *palabra) {
                 }
             }else if(strcasecmp(temp,"+type") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(type, temp);
             }else if(strcasecmp(temp,"+fit") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(fit, temp);
             }else if(strcasecmp(temp,"+delete") == 0){
                 temp = strtok(NULL, " ");
-                strcpy(delete, temp);
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
+                strcpy(delet, temp);
             }else if(strcasecmp(temp,"-name") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(name, temp);
             }else if(strcasecmp(temp,"+add") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(add, temp);
             }else if(strcasecmp(temp, "\n") == 0){
 
@@ -4504,20 +4608,22 @@ void Analizar_Comando(char *linea, char *palabra) {
         }
 
         //Validacion de los datos
-        if (((strcasecmp(size,"")!=0)&&(strcasecmp(delete,"")==0))&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
+        if (((strcasecmp(size,"")!=0)&&(strcasecmp(delet,"")==0))&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
             //Validacion de que el fit este correcto
             if((strcasecmp(fit,"bf") == 0)||(strcasecmp(fit,"ff") == 0)||(strcasecmp(fit,"wf") == 0)||(strcasecmp(fit,"") == 0)){
                 //Validacion de que el type este correcto
                 if((strcasecmp(type,"p") == 0)||(strcasecmp(type,"e") == 0)||(strcasecmp(type,"l") == 0)||(strcasecmp(type,"") == 0)){
-                    Crear_Particion(name[20], size[10], unit[2], fit[2], type[1], path[100]);
+                    Crear_Particion(name, size, unit, fit, type, ruta_Disco);
+                    //printf("Size: %s\nName: %s\nunit: %s\nfit: %s\ntype: %s\nRuta_Disco: %s\n", size, name, unit, fit, type, ruta_Disco);
                 }else{
                     printf("\t>Caracter no reconocido.\n\t>Los types validos son: P, E y L.\n");
                 }
             }else{
                 printf("\t>Caracter no reconocido.\n\t>Los tipos de fit disponibles son: BF, FF y WF.\n");
             }
-        }else if((strcasecmp(delete,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
-            Eliminar_Particiones(delete[4], name[20], ruta_Disco[100]);
+        }else if((strcasecmp(delet,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
+            Eliminar_Particiones(delet, name, ruta_Disco);
+            //printf("delet: %s\nName: %s\nRuta_Disco: %s\n", delet, name, ruta_Disco);
         }else{
             printf("\t>No se han escrito todos los datos esenciales, por favor intentelo nuevamente...\n");
         }
@@ -4529,9 +4635,15 @@ void Analizar_Comando(char *linea, char *palabra) {
         while (temp != NULL) {
             if (strcasecmp(temp,"-name")==0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(name, temp);
             }else if (strcasecmp(temp,"-path")==0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(aux_String, temp);
                 if(aux_String[0] == '\"'){
                     temp++;
@@ -4551,19 +4663,34 @@ void Analizar_Comando(char *linea, char *palabra) {
             }
             temp = strtok(NULL, "::");
         }
-        Montar(name[20], path[100]);
+        
+        if((strcasecmp(name,"") != 0) && (strcasecmp(ruta_Disco,"") != 0)){
+            Montar(name, ruta_Disco);
+            //printf("Name: %s\nruta_Disco: %s\n", name, ruta_Disco);
+        }else{
+            printf("\t>Para montar debe ingresar el nombre de la particion y la ruta del disco.\n");
+        }
 
     //Area para desmontar particiones
     }else if(strcasecmp(palabra, "unmount") == 0){
         char *temp = strtok(linea, " ");
         temp = strtok(NULL, "::");
         if (strcasecmp(temp,"-id")==0){
-                temp = strtok(NULL, " ");
-                strcpy(id, temp);
+            temp = strtok(NULL, " ");
+            if (temp[0] == ':'){
+                memmove(temp, temp+1, strlen(temp));
+            }
+            strcpy(id, temp);
         }else{
                 printf("\t>Comando invalido, para desmontar debe ingresar el id asignado a la particion.\n");
         }
-        Desmontar(id[4]);
+        if(strcasecmp(id, "") != 0){
+            Desmontar(id);
+            //printf("Id: %s",id);
+        }else{
+            printf("\t>Para poder desmontar porfavor ingrese un id.\n");
+        }
+        
     }else if(strcasecmp(palabra, "rep") == 0){
         char *temp = strtok(linea, " ");
         temp = strtok(NULL, "::");
@@ -4571,9 +4698,15 @@ void Analizar_Comando(char *linea, char *palabra) {
         while(temp != NULL){
             if(strcasecmp(temp,"-name") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(name, temp);
             }else if(strcasecmp(temp,"-path") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(aux_String, temp);
                 if(aux_String[0] == '\"'){
                     temp++;
@@ -4586,9 +4719,15 @@ void Analizar_Comando(char *linea, char *palabra) {
                 }
             }else if(strcasecmp(temp,"-id") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(id, temp);
             }else if(strcasecmp(temp,"+ruta") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(path, temp);
             }else if(strcasecmp(temp, "\n") == 0){
 
@@ -4599,15 +4738,21 @@ void Analizar_Comando(char *linea, char *palabra) {
             }
             temp = strtok(NULL, "::");
         }
-        Crear_Directorios_Reales(ruta_Destino);
-        printf("Haria un reporte");
-
+        if((strcasecmp(ruta_Destino, "") != 0) && (strcasecmp(id, "") != 0) && (strcasecmp(name, "") != 0)){
+            Crear_Directorios_Reales_Con_Nombre(ruta_Destino);
+            Rep(ruta_Destino, id, name);
+            //printf("Ruta_Destino: %s\nId: %s\nName: %s\n", ruta_Destino, id, name);
+        }
+        
     //Area de lectura de scripts
     }else if (strcasecmp(palabra, "exec") == 0) {
         char *temp = strtok(linea, " ");
         temp = strtok(NULL, "::");
         if (strcasecmp(temp,"-path")==0){
             temp = strtok(NULL, " ");
+            if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
             strcpy(aux_String, temp);
             if(aux_String[0] == '\"'){
                 temp++;
@@ -4651,6 +4796,9 @@ void Analizar_Comando(char *linea, char *palabra) {
     }else if(strcasecmp(palabra, "df") == 0){
     	char *temp = strtok(linea, " ");
     	temp = strtok(NULL, " ");
+        if (temp[0] == ':'){
+            memmove(temp, temp+1, strlen(temp));
+        }
 
     	while(temp != NULL){
     		if(strcasecmp(temp, "+k") == 0){
@@ -4683,23 +4831,32 @@ void Analizar_Comando(char *linea, char *palabra) {
 
     	while(temp != NULL){
     		if(strcasecmp(temp, "+n") == 0){
-    			temp = strtok(NULL, " ");
-    			dsm = (int)strtol(temp, (char **)NULL, 10);
+                    temp = strtok(NULL, " ");
+                    if (temp[0] == ':'){
+                        memmove(temp, temp+1, strlen(temp));
+                    }
+                    dsm = (int)strtol(temp, (char **)NULL, 10);
     		}else if(strcasecmp(temp, "-h") == 0){
-                temp = strtok(NULL, " ");
-    			dfh = 'h';
+                    temp = strtok(NULL, " ");
+                    if (temp[0] == ':'){
+                        memmove(temp, temp+1, strlen(temp));
+                    }
+                    dfh = 'h';
     		}else if(strcasecmp(temp, "-path") == 0){
-                temp = strtok(NULL, " ");
-                strcpy(aux_String, temp);
-                if(aux_String[0] == '\"'){
-                    temp++;
-                    strcpy(ruta_Disco, temp);
-                    temp = strtok(NULL, "\"");
-                    strcat(ruta_Disco, " ");
-                    strcat(ruta_Disco, temp);
-                }else{
-                    strcpy(ruta_Disco, temp);
-                }
+                    temp = strtok(NULL, " ");
+                    if (temp[0] == ':'){
+                        memmove(temp, temp+1, strlen(temp));
+                    }
+                    strcpy(aux_String, temp);
+                    if(aux_String[0] == '\"'){
+                        temp++;
+                        strcpy(ruta_Disco, temp);
+                        temp = strtok(NULL, "\"");
+                        strcat(ruta_Disco, " ");
+                        strcat(ruta_Disco, temp);
+                    }else{
+                        strcpy(ruta_Disco, temp);
+                    }
     		}else if(strcasecmp(temp, "\n") == 0){
 
             }else if(strcasecmp(temp, "\r\n") == 0){
@@ -4720,18 +4877,33 @@ void Analizar_Comando(char *linea, char *palabra) {
         while(temp != NULL){
             if(strcasecmp(temp,"-id") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(id, temp);
             }else if(strcasecmp(temp,"+type") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(type, temp);
             }else if(strcasecmp(temp,"+add") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 add = (int)strtol(temp, (char**)NULL, 10);
             }else if(strcasecmp(temp,"+unit") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(unit, temp);
             }else if(strcasecmp(temp,"+fs") == 0){
                 temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
                 strcpy(fs, temp);
             }else if(strcasecmp(temp, "\n") == 0){
 
