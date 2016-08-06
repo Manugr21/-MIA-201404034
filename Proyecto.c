@@ -219,32 +219,36 @@ void Crear_Directorios_Reales_Con_Nombre(char path[100]){
     Metodos y Funciones de la Fase 1
 */
 void Crear_Disco(char size[10], char name[20], char ruta_Disco[100]){
-    struct MBR mbr;
-    //Inicializo los datos del disco
-    convertido = (int) strtol(size, (char **)NULL, 10);
-    mbr.mbr_tamano = convertido * 1024 * Multiplicador;
-    time(&mbr.mbr_fecha_creacion);
-    mbr.mbr_disk_signature = (rand() % 26);
-    mbr.mbr_partition_1.part_status = 'n';
-    mbr.mbr_partition_2.part_status = 'n';
-    mbr.mbr_partition_3.part_status = 'n';
-    mbr.mbr_partition_4.part_status = 'n';
+    if(((size>=10) && (Multiplicador>=1024)) || (size>(10*1024)) && (Multiplicador == 1)){
+        struct MBR mbr;
+        //Inicializo los datos del disco
+        convertido = (int) strtol(size, (char **)NULL, 10);
+        mbr.mbr_tamano = convertido * 1024 * Multiplicador;
+        time(&mbr.mbr_fecha_creacion);
+        mbr.mbr_disk_signature = (rand() % 26);
+        mbr.mbr_partition_1.part_status = 'n';
+        mbr.mbr_partition_2.part_status = 'n';
+        mbr.mbr_partition_3.part_status = 'n';
+        mbr.mbr_partition_4.part_status = 'n';
 
-    //Inicio de la escritura del disco
-    char ruta_temp[120];
-    strcpy(ruta_temp, ruta_Disco);
-    strcat(ruta_temp, "/");
-    strcat(ruta_temp, name);
-    FILE *f_disco = fopen (ruta_temp, "wb+");
-    for(int iFor=0; iFor < mbr.mbr_tamano; iFor++){
-        fwrite(buffer, sizeof(buffer), 1, f_disco);
-    }//Fin del for que escribe el disco
+        //Inicio de la escritura del disco
+        char ruta_temp[120];
+        strcpy(ruta_temp, ruta_Disco);
+        strcat(ruta_temp, "/");
+        strcat(ruta_temp, name);
+        FILE *f_disco = fopen (ruta_temp, "wb+");
+        for(int iFor=0; iFor < mbr.mbr_tamano; iFor++){
+            fwrite(buffer, sizeof(buffer), 1, f_disco);
+        }//Fin del for que escribe el disco
 
-    rewind(f_disco);
-    fwrite(&mbr, sizeof(mbr), 1, f_disco);
-    fclose(f_disco);
+        rewind(f_disco);
+        fwrite(&mbr, sizeof(mbr), 1, f_disco);
+        fclose(f_disco);
 
-    printf("\t>>Disco creado exitosamente.\n");
+        printf("\t>>Disco creado exitosamente.\n");
+    }else{
+        printf("\t>El tamano minimo de un disco es de 10 Mb.\n");
+    }
 }
 
 void Eliminar_Disco(char path[100]){
@@ -4613,8 +4617,12 @@ void Analizar_Comando(char *linea, char *palabra){
             if((strcasecmp(fit,"bf") == 0)||(strcasecmp(fit,"ff") == 0)||(strcasecmp(fit,"wf") == 0)||(strcasecmp(fit,"") == 0)){
                 //Validacion de que el type este correcto
                 if((strcasecmp(type,"p") == 0)||(strcasecmp(type,"e") == 0)||(strcasecmp(type,"l") == 0)||(strcasecmp(type,"") == 0)){
-                    Crear_Particion(name, size, unit, fit, type, ruta_Disco);
-                    //printf("Size: %s\nName: %s\nunit: %s\nfit: %s\ntype: %s\nRuta_Disco: %s\n", size, name, unit, fit, type, ruta_Disco);
+                    if(((size >= 2) && (strcasecmp(unit, "m") == 0)) || ((size >= (2*1024)) && ((strcasecmp(unit, "k") == 0) || (strcasecmp(unit, "") == 0))) || ((size >= 2*1024*1024)&&(strcasecmp(unit, "b") == 0))){
+                        Crear_Particion(name, size, unit, fit, type, ruta_Disco);
+                        //printf("Size: %s\nName: %s\nunit: %s\nfit: %s\ntype: %s\nRuta_Disco: %s\n", size, name, unit, fit, type, ruta_Disco);
+                    }else{
+                        printf("\t>El tamano minimo para una particion es de 2 Mb.\n");
+                    }
                 }else{
                     printf("\t>Caracter no reconocido.\n\t>Los types validos son: P, E y L.\n");
                 }
