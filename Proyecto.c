@@ -237,7 +237,7 @@ void Crear_Disco(char size[10], char name[20], char ruta_Disco[100]){
         strcpy(ruta_temp, ruta_Disco);
         strcat(ruta_temp, "/");
         strcat(ruta_temp, name);
-        FILE *f_disco = fopen (ruta_temp, "wb+");
+        FILE *f_disco = fopen(ruta_temp, "wb+");
         for(int iFor=0; iFor < mbr.mbr_tamano; iFor++){
             fwrite(buffer, sizeof(buffer), 1, f_disco);
         }//Fin del for que escribe el disco
@@ -3953,7 +3953,7 @@ void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
     }else if(strcasecmp(unit, "b") == 0){
         Multiplicador = 1;
     }else{
-        Multiplicador = 0;
+        Multiplicador = 1;
     }
 
     if((fopen (ruta_Disco, "rb+")) != NULL){
@@ -3964,30 +3964,30 @@ void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
             if(strcasecmp(mbr.mbr_partition_1.part_name, name) == 0){
                 if((mbr.mbr_partition_1.part_size + (size * Multiplicador)) >= 2048){
                     if(size < 0){
-                        mbr.mbr_partition_1.part_size +=  (size * Multiplicador);
+                        mbr.mbr_partition_1.part_size = mbr.mbr_partition_1.part_size + (size * Multiplicador);
                         printf("\t>>Particion %s reducida a %d.\n", mbr.mbr_partition_1.part_name, mbr.mbr_partition_1.part_size);
                         TAG = 10;
                     }else{
                         if(mbr.mbr_partition_2.part_status != 'n'){
                             if((mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size + (size*Multiplicador))< mbr.mbr_partition_2.part_start){
-                                mbr.mbr_partition_1.part_size +=  (size * Multiplicador);
+                                mbr.mbr_partition_1.part_size = mbr.mbr_partition_1.part_size + (size * Multiplicador);
                                 printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_1.part_name, mbr.mbr_partition_1.part_size);
                                 TAG = 10;
                             }
                         }else if(mbr.mbr_partition_3.part_status != 'n'){
                             if((mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size + (size*Multiplicador))< mbr.mbr_partition_3.part_start){
-                                mbr.mbr_partition_1.part_size +=  (size * Multiplicador);
+                                mbr.mbr_partition_1.part_size = mbr.mbr_partition_1.part_size + (size * Multiplicador);
                                 printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_1.part_name, mbr.mbr_partition_1.part_size);
                                 TAG = 10;
                             }
                         }else if(mbr.mbr_partition_4.part_status != 'n'){
                             if((mbr.mbr_partition_1.part_start + mbr.mbr_partition_1.part_size + (size*Multiplicador))< mbr.mbr_partition_4.part_start){
-                                mbr.mbr_partition_1.part_size +=  (size * Multiplicador);
+                                mbr.mbr_partition_1.part_size = mbr.mbr_partition_1.part_size + (size * Multiplicador);
                                 printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_1.part_name, mbr.mbr_partition_1.part_size);
                                 TAG = 10;
                             }
                         }else{
-                            mbr.mbr_partition_1.part_size +=  (size * Multiplicador);
+                            mbr.mbr_partition_1.part_size = mbr.mbr_partition_1.part_size + (size * Multiplicador);
                             printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_1.part_name, mbr.mbr_partition_1.part_size);
                             TAG = 10;
                         }
@@ -4001,24 +4001,24 @@ void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
             if(strcasecmp(mbr.mbr_partition_2.part_name, name) == 0){
                 if((mbr.mbr_partition_2.part_size + (size * Multiplicador)) >= 2048){
                     if(size < 0){
-                        mbr.mbr_partition_2.part_size +=  (size * Multiplicador);
+                        mbr.mbr_partition_2.part_size = mbr.mbr_partition_2.part_size + (size * Multiplicador);
                         printf("\t>>Particion %s disminuida a %d.\n", mbr.mbr_partition_2.part_name, mbr.mbr_partition_2.part_size);
                         TAG = 10;
                     }else{
                         if(mbr.mbr_partition_3.part_status != 'n'){
                             if((mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size + (size*Multiplicador))< mbr.mbr_partition_3.part_start){
-                                mbr.mbr_partition_2.part_size +=  (size * Multiplicador);
+                                mbr.mbr_partition_2.part_size = mbr.mbr_partition_2.part_size + (size * Multiplicador);
                                 printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_2.part_name, mbr.mbr_partition_2.part_size);
                                 TAG = 10;
                             }
                         }else if(mbr.mbr_partition_4.part_status != 'n'){
                             if((mbr.mbr_partition_2.part_start + mbr.mbr_partition_2.part_size + (size*Multiplicador))< mbr.mbr_partition_4.part_start){
-                                mbr.mbr_partition_2.part_size +=  (size * Multiplicador);
+                                mbr.mbr_partition_2.part_size = mbr.mbr_partition_2.part_size + (size * Multiplicador);
                                 printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_2.part_name, mbr.mbr_partition_2.part_size);
                                 TAG = 10;
                             }
                         }else{
-                            mbr.mbr_partition_2.part_size +=  (size * Multiplicador);
+                            mbr.mbr_partition_2.part_size = mbr.mbr_partition_2.part_size + (size * Multiplicador);
                             printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_2.part_name, mbr.mbr_partition_2.part_size);
                             TAG = 10;
                         }
@@ -4032,18 +4032,18 @@ void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
             if(strcasecmp(mbr.mbr_partition_3.part_name, name) == 0){
                 if((mbr.mbr_partition_3.part_size + (size * Multiplicador)) >= 2048){
                     if(size < 0){
-                        mbr.mbr_partition_3.part_size +=  (size * Multiplicador);
+                        mbr.mbr_partition_3.part_size = mbr.mbr_partition_3.part_size + (size * Multiplicador);
                         printf("\t>>Particion %s disminuida a %d.\n", mbr.mbr_partition_3.part_name, mbr.mbr_partition_3.part_size);
                         TAG = 10;
                     }else{
                         if(mbr.mbr_partition_4.part_status != 'n'){
                             if((mbr.mbr_partition_3.part_start + mbr.mbr_partition_3.part_size + (size*Multiplicador))< mbr.mbr_partition_4.part_start){
-                                mbr.mbr_partition_3.part_size +=  (size * Multiplicador);
+                                mbr.mbr_partition_3.part_size += mbr.mbr_partition_3.part_size + (size * Multiplicador);
                                 printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_3.part_name, mbr.mbr_partition_3.part_size);
                                 TAG = 10;
                             }
                         }else{
-                            mbr.mbr_partition_3.part_size +=  (size * Multiplicador);
+                            mbr.mbr_partition_3.part_size = mbr.mbr_partition_3.part_size + (size * Multiplicador);
                             printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_3.part_name, mbr.mbr_partition_3.part_size);
                             TAG = 10;
                         }
@@ -4057,12 +4057,12 @@ void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
             if(strcasecmp(mbr.mbr_partition_4.part_name, name) == 0){
                 if((mbr.mbr_partition_3.part_size + (size * Multiplicador)) >= 2048){
                     if(size < 0){
-                        mbr.mbr_partition_4.part_size +=  (size * Multiplicador);
+                        mbr.mbr_partition_4.part_size = mbr.mbr_partition_4.part_size + (size * Multiplicador);
                         printf("\t>>Particion %s disminuida a %d.\n", mbr.mbr_partition_4.part_name, mbr.mbr_partition_4.part_size);
                         TAG = 10;
                     }else{
                         if(mbr.mbr_tamano > (mbr.mbr_partition_4.part_start + mbr.mbr_partition_4.part_size + (size * Multiplicador))){
-                            mbr.mbr_partition_4.part_size +=  (size * Multiplicador);
+                            mbr.mbr_partition_4.part_size = mbr.mbr_partition_4.part_size + (size * Multiplicador);
                             printf("\t>>Particion %s incrementada a %d.\n", mbr.mbr_partition_4.part_name, mbr.mbr_partition_4.part_size);
                             TAG = 10;
                         }else{
@@ -4079,6 +4079,12 @@ void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
         if(TAG == 0){
             printf("\t>La particion %s no existe.\n", name);
         }
+        fclose(f);
+        printf(">>>>>>>>>>>>>>>>>>>>>>Size %d\n", mbr.mbr_partition_1.part_size);
+        FILE *f_disco = fopen(ruta_Disco, "wb+");
+        rewind(f_disco);
+        fwrite(&mbr, sizeof(mbr), 1, f_disco);
+        fclose(f_disco);
     }else{
         printf("\t>¡El archivo no existe!");
     }
@@ -4758,12 +4764,12 @@ void Analizar_Comando(char *linea, char *palabra){
         }
 
         //Validacion de los datos
-        if(((strcasecmp(size,"")!=0)&&(strcasecmp(delet,"")==0))&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)&&(strcasecmp(add,"")==0)){
+        if(((strcasecmp(size,"")!=0)&&(strcasecmp(delet,"")==0))&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)&&(add == -1)){
             //Validacion de que el fit este correcto
             if((strcasecmp(fit,"bf") == 0)||(strcasecmp(fit,"ff") == 0)||(strcasecmp(fit,"wf") == 0)||(strcasecmp(fit,"") == 0)){
                 //Validacion de que el type este correcto
                 if((strcasecmp(type,"p") == 0)||(strcasecmp(type,"e") == 0)||(strcasecmp(type,"l") == 0)||(strcasecmp(type,"") == 0)){
-                    if(((size >= 2) && (strcasecmp(unit, "m") == 0)) || ((size >= (2*1024)) && ((strcasecmp(unit, "k") == 0) || (strcasecmp(unit, "") == 0))) || ((size >= 2*1024*1024)&&(strcasecmp(unit, "b") == 0))){
+                    if(((size >= 2) && (strcasecmp(unit, "m") == 0)) || ((size >= (2*1024)) && ((strcasecmp(unit, "k") == 0) || (strcasecmp(unit, "") == 0))) || ((size >= 2*1024*1024) && (strcasecmp(unit, "b") == 0))){
                         Crear_Particion(name, size, unit, fit, type, ruta_Disco);
                         //printf("Size: %s\nName: %s\nunit: %s\nfit: %s\ntype: %s\nRuta_Disco: %s\n", size, name, unit, fit, type, ruta_Disco);
                     }else{
@@ -4775,13 +4781,14 @@ void Analizar_Comando(char *linea, char *palabra){
             }else{
                 printf("\t>Caracter no reconocido.\n\t>Los tipos de fit disponibles son: BF, FF y WF.\n");
             }
-        }else if((strcasecmp(delet,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0)){
+        }else if((strcasecmp(delet,"")!=0)&&(strcasecmp(ruta_Disco,"")!=0)&&(strcasecmp(name,"")!=0) && (add == -1)){
             Eliminar_Particiones(delet, name, ruta_Disco);
             //printf("delet: %s\nName: %s\nRuta_Disco: %s\n", delet, name, ruta_Disco);
-        }else if(((strcasecmp(delet,"")==0))&&(strcasecmp(ruta_Disco,"")!=0)&&(add == -1)&&(strcasecmp(name,"")!=0)){
+        }else if(((strcasecmp(delet,"")==0))&&(strcasecmp(ruta_Disco,"")!=0)&&(add != -1)&&(strcasecmp(name,"")!=0)){
             Add_Espacio(add, ruta_Disco, name, unit);
         }else{
             printf("\t>No se han escrito todos los datos esenciales, por favor intentelo nuevamente...\n");
+            printf("\t>Recuede que no puede usar delete y add en un mismo comando...\n");
         }
 
     //Area para montar particiones
