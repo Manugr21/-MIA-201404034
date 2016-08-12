@@ -2,3 +2,5 @@ Este repositorio contendra el proyecto en sus diversas fases del curso:
 	Manejo e Implementacion de Archivos
 	Universidad de San Carlos de Guatemala
 Autor: Manuel Francisco Galván Reyna
+
+Simula la creacion de un disco duro virtual el cual puede ser formateado para trabajar con los sistemas de archivos ext2 o ext3.

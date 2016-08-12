@@ -132,12 +132,12 @@ void    Analizar_Comando(char *linea, char *palabra);
 
 
 /*
-	El MAIN
+	El Mero MAIN
 */
 int main(){
     system("clear");
     printf("************************************************************\n");
-    printf("*        Bienvenido al sistema de archivos Ext             *\n");
+    printf("*        Bienvenido al sistema de archivos ExtX            *\n");
     printf("************************************************************\n");
     time_t t;
     srand((unsigned) time(&t));
@@ -3939,18 +3939,18 @@ void Eliminar_Particiones(char delet[4], char name[20], char path[250]){
     }//Fin del borrado
 }
 
-void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[2]){
+void Add_Espacio(int size, char ruta_Disco[100], char name[20], char unit[1]){
     struct MBR mbr;
     TAG = 0;
     FILE *f;
 
-    if(strcasecmp(unit, "k") == 0){
+    if((strcasecmp(unit, "k") == 0) || (strcasecmp(unit, "k\\n") == 0)){
         Multiplicador = 1024;
-    }else if(strcasecmp(unit, "m") == 0){
+    }else if((strcasecmp(unit, "m") == 0) || (strcasecmp(unit, "m\\n") == 0)){
         Multiplicador = 1024 * 1024;
-    }else if(strcasecmp(unit, "") == 0){
+    }else if((strcasecmp(unit, "") == 0) || (strcasecmp(unit, "\\n") == 0)){
         Multiplicador = 1024 * 1024;
-    }else if(strcasecmp(unit, "b") == 0){
+    }else if((strcasecmp(unit, "b") == 0) || (strcasecmp(unit, "b\\n") == 0)){
         Multiplicador = 1;
     }else{
         Multiplicador = 1;
@@ -4162,16 +4162,17 @@ void Desmontar(char id[4]){
         char name[20], path[250];
         int Algo = 0;
         char Letra_Disco = id[2];
-        char nP[3];
+        char nP[1];
         FILE *f;
         sprintf(nP, "%c%c", id[3], id[4]);
         aux_int = 0;
         while(Letra_Disco != Abecedario[aux_int]){
             aux_int++;
         }
-        strcpy(name, Montador[aux_int][atoi(nP)]);
+
+        strcpy(name, Montador[aux_int][(int) strtol(nP, (char **)NULL, 10)]);
         strcpy(path, Montador[aux_int][0]);
-        strcpy(Montador[aux_int][atoi(nP)], "");
+        strcpy(Montador[aux_int][(int) strtol(nP, (char **)NULL, 10)], "");
         TAG = 0;
         while(Algo < 100){
             if(strcasecmp(Montador[aux_int][Algo], "") != 0){
@@ -4281,9 +4282,11 @@ void Rep(char ruta_Destino[100],  char id[4], char name[10]){
             printf("Reporte de permisos l.\n");
         }else if(strcasecmp(name,"log") == 0){
             printf("Reporte de la bitacora\n");
+        }else{
+            printf("Name invalido, porfavor intentelo nuevamente...\n");
         }
     }else{
-        printf("Name invalido, porfavor intentelo nuevamente...\n");
+        printf("Algo invalido, porfavor intentelo nuevamente...\n");
     }
 }
 
@@ -4573,6 +4576,7 @@ void Analizar_Comando(char *linea, char *palabra){
     char delet[4];
     int  add, dsm;
     char id[5];
+    char lid[20][5];
     char dfk, dfm, dfh, dfi;
     char fs[3];
 
@@ -4602,26 +4606,42 @@ void Analizar_Comando(char *linea, char *palabra){
                 }
                 strcpy(unit, temp);
             }else if (strcasecmp(temp,"-path")==0){
+
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(aux_String, temp);
-                if(aux_String[0] == '\"'){
-                    temp++;
-                    strcpy(ruta_Disco, temp);
-                    temp = strtok(NULL, "\"");
-                    strcat(ruta_Disco, " ");
-                    strcat(ruta_Disco, temp);
-                }else{
-                    strcpy(ruta_Disco, temp);
-                }
+
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(ruta_Disco, otroaux);
+
             }else if(strcasecmp(temp,"-name")==0){
-            	temp = strtok(NULL, " ");
-            	if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+
+                temp = strtok(NULL, " ");
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-            	strcpy(name, temp);
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(name, otroaux);
+
             }else if(strcasecmp(temp, "\n") == 0){
 
             }else if(strcasecmp(temp, "\r\n") == 0){
@@ -4667,19 +4687,22 @@ void Analizar_Comando(char *linea, char *palabra){
         temp = strtok(NULL, "::");
         if (strcasecmp(temp,"-path")==0){
             temp = strtok(NULL, " ");
-            if (temp[0] == ':'){
-                memmove(temp, temp+1, strlen(temp));
+            char* aux = malloc(strlen("plop") + 100);
+            strcpy(aux, temp+1);
+            char aux2[150];
+            strcpy(aux2, aux);
+
+            while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                temp = strtok(NULL, " ");
+                strcat(aux, " ");
+                strcat(aux, temp);
+                strcpy(aux2, aux);
             }
-            strcpy(aux_String, temp);
-            if(aux_String[0] == '\"'){
-                temp++;
-                strcpy(ruta_Disco, temp);
-                temp = strtok(NULL, "\"");
-                strcat(ruta_Disco, " ");
-                strcat(ruta_Disco, temp);
-            }else{
-                strcpy(ruta_Disco, temp);
-            }
+
+            char* otroaux = malloc(strlen("plop") + 100);
+            strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+            strcpy(ruta_Disco, otroaux);
+
             Eliminar_Disco(ruta_Disco);
             //printf("Ruta_Disco: %s\n", ruta_Disco);
         }else if(strcasecmp(temp, "\n") == 0){
@@ -4710,19 +4733,21 @@ void Analizar_Comando(char *linea, char *palabra){
                 strcpy(unit, temp);
             }else if(strcasecmp(temp,"-path") == 0){
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(aux_String, temp);
-                if(aux_String[0] != '\"'){
-                    strcpy(ruta_Disco, temp);
-                }else{
-                    temp++;
-                    strcpy(ruta_Disco, temp);
-                    temp = strtok(NULL, "\"");
-                    strcat(ruta_Disco, " ");
-                    strcat(ruta_Disco, temp);
-                }
+
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(ruta_Disco, otroaux);
             }else if(strcasecmp(temp,"+type") == 0){
                 temp = strtok(NULL, " ");
                 if (temp[0] == ':'){
@@ -4743,10 +4768,20 @@ void Analizar_Comando(char *linea, char *palabra){
                 strcpy(delet, temp);
             }else if(strcasecmp(temp,"-name") == 0){
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(name, temp);
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(name, otroaux);
             }else if(strcasecmp(temp,"+add") == 0){
                 temp = strtok(NULL, " ");
                 if (temp[0] == ':'){
@@ -4798,25 +4833,37 @@ void Analizar_Comando(char *linea, char *palabra){
         while (temp != NULL) {
             if (strcasecmp(temp,"-name")==0){
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 10);
+                strcpy(aux, temp+1);
+                char aux2[10];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(name, temp);
+                char* otroaux = malloc(strlen("plop") + 10);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(name, otroaux);
             }else if (strcasecmp(temp,"-path")==0){
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(aux_String, temp);
-                if(aux_String[0] == '\"'){
-                    temp++;
-                    strcpy(ruta_Disco, temp);
-                    temp = strtok(NULL, "\"");
-                    strcat(ruta_Disco, " ");
-                    strcat(ruta_Disco, temp);
-                }else{
-                    strcpy(ruta_Disco, temp);
-                }
+
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(ruta_Disco, otroaux);
             }else if(strcasecmp(temp, "\n") == 0){
 
             }else if(strcasecmp(temp, "\r\n") == 0){
@@ -4838,17 +4885,34 @@ void Analizar_Comando(char *linea, char *palabra){
     }else if(strcasecmp(palabra, "unmount") == 0){
         char *temp = strtok(linea, " ");
         temp = strtok(NULL, "::");
-        if (strcasecmp(temp,"-id")==0){
-            temp = strtok(NULL, " ");
-            if (temp[0] == ':'){
-                memmove(temp, temp+1, strlen(temp));
+        int contador = 1;
+        while(temp != NULL){
+            char *auxiliar= malloc(strlen("plop") + 10);
+            strcpy(auxiliar, "-id");
+            char num[2];
+            sprintf(num, "%d", contador);
+            strcat(auxiliar, num);
+
+            if (strcasecmp(temp, auxiliar)==0){
+                temp = strtok(NULL, " ");
+                if (temp[0] == ':'){
+                    memmove(temp, temp+1, strlen(temp));
+                }
+                strcpy(lid[contador], temp);
+                contador++;
+            }else if(strcasecmp(temp, "\n") == 0){
+
+            }else if(strcasecmp(temp, "\r\n") == 0){
+
+            }else{
+                    printf("\t>Comando invalido o numero de id no consecutivo, para desmontar debe ingresar el id asignado a la particion.\n");
             }
-            strcpy(id, temp);
-        }else{
-                printf("\t>Comando invalido, para desmontar debe ingresar el id asignado a la particion.\n");
+            temp = strtok(NULL, "::");
         }
-        if(strcasecmp(id, "") != 0){
-            Desmontar(id);
+        if(strcasecmp(lid[1], "") != 0){
+            for(int i = 1; i < contador; i++){
+                Desmontar(lid[i]);
+            }
             //printf("Id: %s",id);
         }else{
             printf("\t>Para poder desmontar porfavor ingrese un id.\n");
@@ -4866,20 +4930,24 @@ void Analizar_Comando(char *linea, char *palabra){
                 }
                 strcpy(name, temp);
             }else if(strcasecmp(temp,"-path") == 0){
+
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(aux_String, temp);
-                if(aux_String[0] == '\"'){
-                    temp++;
-                    strcpy(ruta_Destino, temp);
-                    temp = strtok(NULL, "\"");
-                    strcat(ruta_Destino, " ");
-                    strcat(ruta_Destino, temp);
-                }else{
-                    strcpy(ruta_Destino, temp);
-                }
+
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(ruta_Destino, otroaux);
+
             }else if(strcasecmp(temp,"-id") == 0){
                 temp = strtok(NULL, " ");
                 if (temp[0] == ':'){
@@ -4888,10 +4956,21 @@ void Analizar_Comando(char *linea, char *palabra){
                 strcpy(id, temp);
             }else if(strcasecmp(temp,"+ruta") == 0){
                 temp = strtok(NULL, " ");
-                if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
+                char* aux = malloc(strlen("plop") + 100);
+                strcpy(aux, temp+1);
+                char aux2[150];
+                strcpy(aux2, aux);
+
+                while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                    temp = strtok(NULL, " ");
+                    strcat(aux, " ");
+                    strcat(aux, temp);
+                    strcpy(aux2, aux);
                 }
-                strcpy(path, temp);
+
+                char* otroaux = malloc(strlen("plop") + 100);
+                strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+                strcpy(path, otroaux);
             }else if(strcasecmp(temp, "\n") == 0){
 
             }else if(strcasecmp(temp, "\r\n") == 0){
@@ -4913,19 +4992,21 @@ void Analizar_Comando(char *linea, char *palabra){
         temp = strtok(NULL, "::");
         if (strcasecmp(temp,"-path")==0){
             temp = strtok(NULL, " ");
-            if (temp[0] == ':'){
-                    memmove(temp, temp+1, strlen(temp));
-                }
-            strcpy(aux_String, temp);
-            if(aux_String[0] == '\"'){
-                temp++;
-                strcpy(ruta_Disco, temp);
-                temp = strtok(NULL, "\"");
-                strcat(ruta_Disco, " ");
-                strcat(ruta_Disco, temp);
-            }else{
-                strcpy(ruta_Disco, temp);
+            char* aux = malloc(strlen("plop") + 100);
+            strcpy(aux, temp+1);
+            char aux2[150];
+            strcpy(aux2, aux);
+
+            while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
+                temp = strtok(NULL, " ");
+                strcat(aux, " ");
+                strcat(aux, temp);
+                strcpy(aux2, aux);
             }
+
+            char* otroaux = malloc(strlen("plop") + 100);
+            strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
+            strcpy(ruta_Disco, otroaux);
 
             FILE *f = fopen (ruta_Disco, "r");
 
