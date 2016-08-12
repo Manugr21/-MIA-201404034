@@ -4608,9 +4608,10 @@ void Analizar_Comando(char *linea, char *palabra){
             }else if (strcasecmp(temp,"-path")==0){
 
                 temp = strtok(NULL, " ");
-                char* aux = malloc(strlen("plop") + 100);
+                char* aux = malloc(100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4620,7 +4621,8 @@ void Analizar_Comando(char *linea, char *palabra){
                     strcpy(aux2, aux);
                 }
 
-                char* otroaux = malloc(strlen("plop") + 100);
+                char* otroaux = malloc(100);
+                memset(otroaux, 0, sizeof(otroaux));
                 strncpy(otroaux, aux2 + 1, strlen(aux2) - 2);
                 strcpy(ruta_Disco, otroaux);
 
@@ -4630,6 +4632,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4690,6 +4693,7 @@ void Analizar_Comando(char *linea, char *palabra){
             char* aux = malloc(strlen("plop") + 100);
             strcpy(aux, temp+1);
             char aux2[150];
+            memset(aux2, 0, sizeof(aux2));
             strcpy(aux2, aux);
 
             while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4736,6 +4740,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4771,6 +4776,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4836,6 +4842,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 10);
                 strcpy(aux, temp+1);
                 char aux2[10];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4852,6 +4859,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4935,6 +4943,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4959,6 +4968,7 @@ void Analizar_Comando(char *linea, char *palabra){
                 char* aux = malloc(strlen("plop") + 100);
                 strcpy(aux, temp+1);
                 char aux2[150];
+                memset(aux2, 0, sizeof(aux2));
                 strcpy(aux2, aux);
 
                 while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
@@ -4995,6 +5005,7 @@ void Analizar_Comando(char *linea, char *palabra){
             char* aux = malloc(strlen("plop") + 100);
             strcpy(aux, temp+1);
             char aux2[150];
+            memset(aux2, 0, sizeof(aux2));
             strcpy(aux2, aux);
 
             while(strcmp(&aux2[strlen(aux2) -1], "\"") != 0){
