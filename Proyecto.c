@@ -3713,7 +3713,7 @@ void Crear_Particion(char name[20], char size[10], char unit[2], char fit[2], ch
         }
         fclose(f);
     }else{
-        printf("\t>¡El archivo no existe!");
+        printf("\t>¡El archivo no existe!\n");
     }
 }
 
