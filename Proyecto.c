@@ -194,6 +194,26 @@ char* montador( char name[20], char path[100]){
     return "";
 }
 
+void Desplegar(){
+    int j = 0;
+    while(j!=-1){
+        if((strcasecmp(Montador[j],"")!=0)){
+            int i = 1;
+            while(i!=-1){
+                if((strcasecmp(Montador[0][i],"")!=0)){
+                    printf("~~~~~~> vd%c%d\n",Abecedario[0], i);
+                    i++;
+                }else{
+                    i = -1;
+                }
+            }
+            j++;
+        }else{
+            j=-1;
+        }
+    }
+}
+
 void Crear_Directorios_Reales(char path[100]){
     if(path[0] == '/'){
         char terminal_cmd[300];
@@ -4560,6 +4580,8 @@ void Rep_Disco(char path[100], char pSalida[150]){
     }
 }
 
+
+
 /*
     Analizador de comandos
  */
@@ -4857,6 +4879,7 @@ void Analizar_Comando(char *linea, char *palabra){
             //printf("Name: %s\nruta_Disco: %s\n", name, ruta_Disco);
         }else{
             printf("\t>Para montar debe ingresar el nombre de la particion y la ruta del disco.\n");
+            Desplegar();
         }
 
     //Area para desmontar particiones
